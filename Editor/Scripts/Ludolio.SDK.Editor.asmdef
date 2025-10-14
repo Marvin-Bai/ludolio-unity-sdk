@@ -1,8 +1,12 @@
 {
-    "name": "GamesStore.SDK.Runtime",
-    "rootNamespace": "GamesStore.SDK",
-    "references": [],
-    "includePlatforms": [],
+    "name": "Ludolio.SDK.Editor",
+    "rootNamespace": "Ludolio.SDK.Editor",
+    "references": [
+        "Ludolio.SDK.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,

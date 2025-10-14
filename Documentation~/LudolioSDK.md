@@ -1,6 +1,6 @@
-# Games Store Unity SDK Documentation
+# Ludolio Unity SDK Documentation
 
-Complete documentation for integrating Games Store SDK into your Unity game.
+Complete documentation for integrating Ludolio SDK into your Unity game.
 
 ## Table of Contents
 
@@ -14,9 +14,9 @@ Complete documentation for integrating Games Store SDK into your Unity game.
 
 ## Introduction
 
-The Games Store Unity SDK provides a Steamworks-like API for Unity games to integrate with the Games Store platform. It handles:
+The Ludolio Unity SDK provides a Steamworks-like API for Unity games to integrate with the Ludolio platform. It handles:
 
-- **Authentication** - Automatic user authentication via the Games Store client
+- **Authentication** - Automatic user authentication via the Ludolio client
 - **Achievements** - Unlock and track player achievements
 - **User Data** - Access current user information
 - **DRM** - Built-in validation and access control
@@ -24,10 +24,10 @@ The Games Store Unity SDK provides a Steamworks-like API for Unity games to inte
 
 ### How It Works
 
-1. Student launches your game from the Games Store desktop client
+1. Student launches your game from the Ludolio desktop client
 2. Client passes authentication data via command-line arguments
 3. Your game initializes the SDK
-4. SDK validates the token with the local Games Store client
+4. SDK validates the token with the local Ludolio client
 5. Your game can now use all SDK features
 
 ## Installation
@@ -36,7 +36,7 @@ The Games Store Unity SDK provides a Steamworks-like API for Unity games to inte
 
 1. Open Unity Package Manager (`Window > Package Manager`)
 2. Click `+` → `Add package from git URL`
-3. Enter: `https://github.com/Marvin-Bai/games-store-unity-sdk.git`
+3. Enter: `https://github.com/Marvin-Bai/ludolio-unity-sdk.git`
 
 ### Via manifest.json
 
@@ -45,7 +45,7 @@ Add to `Packages/manifest.json`:
 ```json
 {
   "dependencies": {
-    "com.ludolio.sdk": "https://github.com/Marvin-Bai/games-store-unity-sdk.git#v1.0.0"
+    "com.ludolio.sdk": "https://github.com/Marvin-Bai/ludolio-unity-sdk.git#v0.1.0"
   }
 }
 ```
@@ -55,7 +55,7 @@ Add to `Packages/manifest.json`:
 Use a specific version tag:
 
 ```
-https://github.com/Marvin-Bai/games-store-unity-sdk.git#v1.0.0
+https://github.com/Marvin-Bai/ludolio-unity-sdk.git#v0.1.0
 ```
 
 ## Quick Start
@@ -66,24 +66,24 @@ Create a script that initializes the SDK:
 
 ```csharp
 using UnityEngine;
-using GamesStore.SDK;
+using Ludolio.SDK;
 
 public class GameSDKManager : MonoBehaviour
 {
     [SerializeField] private string gameId = "your-game-id";
-    
+
     void Start()
     {
         // Subscribe to events
-        GamesStoreSDK.OnAuthenticationComplete += OnAuthComplete;
-        
+        LudolioSDK.OnAuthenticationComplete += OnAuthComplete;
+
         // Initialize SDK
-        if (!GamesStoreSDK.Init(gameId))
+        if (!LudolioSDK.Init(gameId))
         {
             Debug.LogError("Failed to initialize SDK!");
         }
     }
-    
+
     void OnAuthComplete(bool success)
     {
         if (success)
@@ -96,10 +96,10 @@ public class GameSDKManager : MonoBehaviour
             Debug.LogError("Authentication failed!");
         }
     }
-    
+
     void OnDestroy()
     {
-        GamesStoreSDK.Shutdown();
+        LudolioSDK.Shutdown();
     }
 }
 ```
@@ -113,11 +113,11 @@ public class GameSDKManager : MonoBehaviour
 
 ### 3. Test
 
-Your game must be launched from the Games Store client to work properly. The SDK will fail to initialize if launched directly from Unity or standalone.
+Your game must be launched from the Ludolio client to work properly. The SDK will fail to initialize if launched directly from Unity or standalone.
 
 ## API Reference
 
-### GamesStoreSDK
+### LudolioSDK
 
 Main SDK class for initialization and core functionality.
 
@@ -128,11 +128,11 @@ Main SDK class for initialization and core functionality.
 Initialize the SDK with your game ID.
 
 ```csharp
-bool success = GamesStoreSDK.Init("my-game-id");
+bool success = LudolioSDK.Init("my-game-id");
 ```
 
 **Parameters:**
-- `gameId` - Your game's unique identifier from Games Store
+- `gameId` - Your game's unique identifier from Ludolio
 
 **Returns:** `true` if initialization started successfully
 
@@ -145,7 +145,7 @@ Shutdown the SDK. Call this when your game is closing.
 ```csharp
 void OnDestroy()
 {
-    GamesStoreSDK.Shutdown();
+    LudolioSDK.Shutdown();
 }
 ```
 
@@ -156,7 +156,7 @@ void OnDestroy()
 Check if the SDK has been initialized.
 
 ```csharp
-if (GamesStoreSDK.IsInitialized)
+if (LudolioSDK.IsInitialized)
 {
     // SDK is ready
 }
@@ -167,7 +167,7 @@ if (GamesStoreSDK.IsInitialized)
 Check if the user is authenticated.
 
 ```csharp
-if (GamesStoreSDK.IsAuthenticated)
+if (LudolioSDK.IsAuthenticated)
 {
     // User is authenticated, can use SDK features
 }
@@ -180,7 +180,7 @@ if (GamesStoreSDK.IsAuthenticated)
 Fired when SDK initialization completes.
 
 ```csharp
-GamesStoreSDK.OnInitialized += () =>
+LudolioSDK.OnInitialized += () =>
 {
     Debug.Log("SDK initialized!");
 };
@@ -191,7 +191,7 @@ GamesStoreSDK.OnInitialized += () =>
 Fired when authentication completes.
 
 ```csharp
-GamesStoreSDK.OnAuthenticationComplete += (success) =>
+LudolioSDK.OnAuthenticationComplete += (success) =>
 {
     if (success)
     {
@@ -202,16 +202,16 @@ GamesStoreSDK.OnAuthenticationComplete += (success) =>
 
 ##### `OnClientDisconnected`
 
-Fired when the Games Store client disconnects. The game will automatically quit after this event.
+Fired when the Ludolio client disconnects. The game will automatically quit after this event.
 
 ```csharp
-GamesStoreSDK.OnClientDisconnected += () =>
+LudolioSDK.OnClientDisconnected += () =>
 {
     Debug.Log("Client disconnected, game will close");
 };
 ```
 
-### GamesStoreAchievements
+### LudolioAchievements
 
 Achievement management API.
 
@@ -222,7 +222,7 @@ Achievement management API.
 Unlock an achievement.
 
 ```csharp
-GamesStoreAchievements.UnlockAchievement("first_win", success =>
+LudolioAchievements.UnlockAchievement("first_win", success =>
 {
     if (success)
     {
@@ -237,10 +237,10 @@ Set progress for a progressive achievement (0.0 to 1.0).
 
 ```csharp
 // Set to 50%
-GamesStoreAchievements.SetAchievementProgress("collect_100_coins", 0.5f);
+LudolioAchievements.SetAchievementProgress("collect_100_coins", 0.5f);
 
 // Set to 100% (will unlock the achievement)
-GamesStoreAchievements.SetAchievementProgress("collect_100_coins", 1.0f);
+LudolioAchievements.SetAchievementProgress("collect_100_coins", 1.0f);
 ```
 
 ##### `GetAchievements(Action<List<AchievementData>> callback)`
@@ -248,7 +248,7 @@ GamesStoreAchievements.SetAchievementProgress("collect_100_coins", 1.0f);
 Get all achievements for the current game.
 
 ```csharp
-GamesStoreAchievements.GetAchievements(achievements =>
+LudolioAchievements.GetAchievements(achievements =>
 {
     foreach (var achievement in achievements)
     {
@@ -262,7 +262,7 @@ GamesStoreAchievements.GetAchievements(achievements =>
 Check if an achievement is unlocked (from cache).
 
 ```csharp
-if (GamesStoreAchievements.IsAchievementUnlocked("first_win"))
+if (LudolioAchievements.IsAchievementUnlocked("first_win"))
 {
     // Achievement is unlocked
 }
@@ -273,7 +273,7 @@ if (GamesStoreAchievements.IsAchievementUnlocked("first_win"))
 Clear the achievement cache to force a refresh.
 
 ```csharp
-GamesStoreAchievements.ClearCache();
+LudolioAchievements.ClearCache();
 ```
 
 #### Static Events
@@ -283,7 +283,7 @@ GamesStoreAchievements.ClearCache();
 Fired when an achievement is unlocked.
 
 ```csharp
-GamesStoreAchievements.OnAchievementUnlocked += (achievementId) =>
+LudolioAchievements.OnAchievementUnlocked += (achievementId) =>
 {
     Debug.Log($"Achievement unlocked: {achievementId}");
     // Show achievement notification UI
@@ -295,13 +295,13 @@ GamesStoreAchievements.OnAchievementUnlocked += (achievementId) =>
 Fired when achievement progress updates.
 
 ```csharp
-GamesStoreAchievements.OnAchievementProgress += (id, progress) =>
+LudolioAchievements.OnAchievementProgress += (id, progress) =>
 {
     Debug.Log($"{id}: {progress * 100}%");
 };
 ```
 
-### GamesStoreUser
+### LudolioUser
 
 User information API.
 
@@ -312,7 +312,7 @@ User information API.
 Get information about the current user.
 
 ```csharp
-GamesStoreUser.GetUserInfo(userInfo =>
+LudolioUser.GetUserInfo(userInfo =>
 {
     if (userInfo != null)
     {
@@ -327,7 +327,7 @@ GamesStoreUser.GetUserInfo(userInfo =>
 Get the current user's ID.
 
 ```csharp
-string userId = GamesStoreUser.GetUserId();
+string userId = LudolioUser.GetUserId();
 ```
 
 ##### `GetUserName()`
@@ -335,7 +335,7 @@ string userId = GamesStoreUser.GetUserId();
 Get the current user's name (from cache).
 
 ```csharp
-string userName = GamesStoreUser.GetUserName();
+string userName = LudolioUser.GetUserName();
 ```
 
 ##### `GetUserEmail()`
@@ -343,7 +343,7 @@ string userName = GamesStoreUser.GetUserName();
 Get the current user's email (from cache).
 
 ```csharp
-string email = GamesStoreUser.GetUserEmail();
+string email = LudolioUser.GetUserEmail();
 ```
 
 ##### `ClearCache()`
@@ -351,12 +351,12 @@ string email = GamesStoreUser.GetUserEmail();
 Clear the user info cache.
 
 ```csharp
-GamesStoreUser.ClearCache();
+LudolioUser.ClearCache();
 ```
 
 ## Examples
 
-See `Samples~/BasicIntegration/GamesStoreExample.cs` for a complete working example.
+See `Samples~/BasicIntegration/LudolioExample.cs` for a complete working example.
 
 ## Best Practices
 
@@ -374,16 +374,16 @@ See `Samples~/BasicIntegration/GamesStoreExample.cs` for a complete working exam
 **Problem:** `Init()` returns false
 
 **Solutions:**
-- Make sure the game is launched from Games Store client
+- Make sure the game is launched from Ludolio client
 - Check that command-line arguments are being passed
-- Verify the Games Store client is running
+- Verify the Ludolio client is running
 
 ### Authentication Fails
 
 **Problem:** `OnAuthenticationComplete` receives `false`
 
 **Solutions:**
-- Check that the Games Store client is running
+- Check that the Ludolio client is running
 - Verify the local API server is accessible (localhost:3000)
 - Check the Unity console for error messages
 
@@ -394,12 +394,12 @@ See `Samples~/BasicIntegration/GamesStoreExample.cs` for a complete working exam
 **Solutions:**
 - Verify user is authenticated (`IsAuthenticated`)
 - Check achievement ID is correct
-- Ensure Games Store client is running
+- Ensure Ludolio client is running
 - Check network connectivity to localhost
 
 ### Game Doesn't Close When Client Closes
 
-**Problem:** Game continues running after closing Games Store client
+**Problem:** Game continues running after closing Ludolio client
 
 **Solutions:**
 - This is handled automatically by the SDK
@@ -408,7 +408,7 @@ See `Samples~/BasicIntegration/GamesStoreExample.cs` for a complete working exam
 
 ## Support
 
-- **Documentation**: [GitHub Wiki](https://github.com/Marvin-Bai/games-store-unity-sdk/wiki)
-- **Issues**: [GitHub Issues](https://github.com/Marvin-Bai/games-store-unity-sdk/issues)
+- **Documentation**: [GitHub Wiki](https://github.com/Marvin-Bai/ludolio-unity-sdk/wiki)
+- **Issues**: [GitHub Issues](https://github.com/Marvin-Bai/ludolio-unity-sdk/issues)
 - **Examples**: Check the `Samples~` folder in the package
 

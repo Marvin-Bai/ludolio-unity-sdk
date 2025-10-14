@@ -1,13 +1,13 @@
-# Games Store Unity SDK
+# Ludolio Unity SDK
 
-Official Unity SDK for Games Store integration. This SDK provides a Steamworks-like API for Unity games to integrate with the Games Store platform.
+Official Unity SDK for Ludolio integration. This SDK provides a Steamworks-like API for Unity games to integrate with the Ludolio platform.
 
 ## Features
 
-- 🔐 **Automatic Authentication** - Seamless authentication with the Games Store client
+- 🔐 **Automatic Authentication** - Seamless authentication with the Ludolio client
 - 🏆 **Achievements System** - Unlock and track player achievements
 - 👤 **User Information** - Access current user data
-- 🔄 **Auto-Sync** - Automatic synchronization with the Games Store client
+- 🔄 **Auto-Sync** - Automatic synchronization with the Ludolio client
 - 🛡️ **DRM Protection** - Built-in validation and time-based access control
 - 🎮 **Process Lifecycle** - Automatic game shutdown when client closes (like Steam)
 
@@ -33,22 +33,22 @@ Add this script to a GameObject in your first scene:
 
 ```csharp
 using UnityEngine;
-using GamesStore.SDK;
+using Ludolio.SDK;
 
 public class GameManager : MonoBehaviour
 {
     void Start()
     {
         // Initialize SDK with your game ID
-        if (GamesStoreSDK.Init("your-game-id"))
+        if (LudolioSDK.Init("your-game-id"))
         {
-            Debug.Log("Games Store SDK initialized!");
+            Debug.Log("Ludolio SDK initialized!");
         }
     }
-    
+
     void OnDestroy()
     {
-        GamesStoreSDK.Shutdown();
+        LudolioSDK.Shutdown();
     }
 }
 ```
@@ -58,8 +58,8 @@ public class GameManager : MonoBehaviour
 ```csharp
 void Start()
 {
-    GamesStoreSDK.OnAuthenticationComplete += OnAuthComplete;
-    GamesStoreSDK.Init("your-game-id");
+    LudolioSDK.OnAuthenticationComplete += OnAuthComplete;
+    LudolioSDK.Init("your-game-id");
 }
 
 void OnAuthComplete(bool success)
@@ -80,7 +80,7 @@ void OnAuthComplete(bool success)
 
 ```csharp
 // Unlock an achievement
-GamesStoreAchievements.UnlockAchievement("first_win", success =>
+LudolioAchievements.UnlockAchievement("first_win", success =>
 {
     if (success)
     {
@@ -89,13 +89,13 @@ GamesStoreAchievements.UnlockAchievement("first_win", success =>
 });
 
 // Set progress for progressive achievements
-GamesStoreAchievements.SetAchievementProgress("collect_100_coins", 0.5f);
+LudolioAchievements.SetAchievementProgress("collect_100_coins", 0.5f);
 ```
 
 ### 4. Get User Information
 
 ```csharp
-GamesStoreUser.GetUserInfo(userInfo =>
+LudolioUser.GetUserInfo(userInfo =>
 {
     if (userInfo != null)
     {
@@ -105,13 +105,13 @@ GamesStoreUser.GetUserInfo(userInfo =>
 });
 
 // Or use quick accessors
-string userId = GamesStoreUser.GetUserId();
-string userName = GamesStoreUser.GetUserName();
+string userId = LudolioUser.GetUserId();
+string userName = LudolioUser.GetUserName();
 ```
 
 ## API Reference
 
-### GamesStoreSDK
+### LudolioSDK
 
 Main SDK class for initialization and core functionality.
 
@@ -128,9 +128,9 @@ Main SDK class for initialization and core functionality.
 
 - `OnInitialized` - Fired when SDK initialization completes
 - `OnAuthenticationComplete(bool success)` - Fired when authentication completes
-- `OnClientDisconnected` - Fired when Games Store client disconnects
+- `OnClientDisconnected` - Fired when Ludolio client disconnects
 
-### GamesStoreAchievements
+### LudolioAchievements
 
 Achievement management API.
 
@@ -147,7 +147,7 @@ Achievement management API.
 - `OnAchievementUnlocked(string achievementId)` - Fired when an achievement is unlocked
 - `OnAchievementProgress(string achievementId, float progress)` - Fired when achievement progress updates
 
-### GamesStoreUser
+### LudolioUser
 
 User information API.
 
@@ -161,63 +161,63 @@ User information API.
 
 ## Complete Example
 
-See the included sample in `Samples~/BasicIntegration/GamesStoreExample.cs` for a complete working example.
+See the included sample in `Samples~/BasicIntegration/LudolioExample.cs` for a complete working example.
 
 ```csharp
 using UnityEngine;
-using GamesStore.SDK;
+using Ludolio.SDK;
 
 public class MyGame : MonoBehaviour
 {
     void Start()
     {
         // Subscribe to events
-        GamesStoreSDK.OnAuthenticationComplete += OnAuth;
-        GamesStoreAchievements.OnAchievementUnlocked += OnAchievement;
-        
+        LudolioSDK.OnAuthenticationComplete += OnAuth;
+        LudolioAchievements.OnAchievementUnlocked += OnAchievement;
+
         // Initialize
-        GamesStoreSDK.Init("my-awesome-game");
+        LudolioSDK.Init("my-awesome-game");
     }
-    
+
     void OnAuth(bool success)
     {
         if (success)
         {
             // Get user info
-            GamesStoreUser.GetUserInfo(user => {
+            LudolioUser.GetUserInfo(user => {
                 Debug.Log($"Welcome {user.name}!");
             });
-            
+
             // Load achievements
-            GamesStoreAchievements.GetAchievements(achievements => {
+            LudolioAchievements.GetAchievements(achievements => {
                 Debug.Log($"You have {achievements.Count} achievements");
             });
         }
     }
-    
+
     void OnAchievement(string id)
     {
         Debug.Log($"Achievement unlocked: {id}");
     }
-    
+
     void OnDestroy()
     {
-        GamesStoreSDK.Shutdown();
+        LudolioSDK.Shutdown();
     }
 }
 ```
 
 ## How It Works
 
-1. **Game Launch**: The Games Store client launches your game with authentication parameters
+1. **Game Launch**: The Ludolio client launches your game with authentication parameters
 2. **SDK Init**: Your game initializes the SDK, which reads the command-line arguments
-3. **Authentication**: SDK validates the token with the local Games Store client API
+3. **Authentication**: SDK validates the token with the local Ludolio client API
 4. **Gameplay**: Your game can now use all SDK features (achievements, user info, etc.)
-5. **Lifecycle**: SDK monitors the   client connection and closes the game if client disconnects
- 
+5. **Lifecycle**: SDK monitors the client connection and closes the game if client disconnects
+
 ## Local API Endpoints
 
-The SDK communicates with the Games Store client via HTTP (localhost only):
+The SDK communicates with the Ludolio client via HTTP (localhost only):
 
 - `GET /api/health` - Health check
 - `POST /api/validate-token` - Token validation
@@ -228,8 +228,8 @@ The SDK communicates with the Games Store client via HTTP (localhost only):
 ## Requirements
 
 - Unity 2019.4 or later
-- Games Store Desktop Client installed
-- Game must be launched from Games Store client
+- Ludolio Desktop Client installed
+- Game must be launched from Ludolio client
 
 ## Testing
 
@@ -241,8 +241,8 @@ For development/testing without the client:
 
 ## Support
 
-- **Documentation**: [GitHub Wiki](https://github.com/Marvin-Bai/games-store-unity-sdk/wiki)
-- **Issues**: [GitHub Issues](https://github.com/Marvin-Bai/games-store-unity-sdk/issues)
+- **Documentation**: [GitHub Wiki](https://github.com/Marvin-Bai/ludolio-unity-sdk/wiki)
+- **Issues**: [GitHub Issues](https://github.com/Marvin-Bai/ludolio-unity-sdk/issues)
 - **Examples**: Check the `Samples~` folder
 
 ## License

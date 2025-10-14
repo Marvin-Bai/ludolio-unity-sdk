@@ -1,18 +1,43 @@
 # Changelog
 
-All notable changes to the Games Store Unity SDK will be documented in this file.
+All notable changes to the Ludolio Unity SDK will be documented in this file.
+
+## [0.1.0] - 2025-10-14
+
+### Changed
+- **BREAKING CHANGE**: Complete rebranding from "Games Store" to "Ludolio"
+- Renamed namespace: `GamesStore.SDK` → `Ludolio.SDK`
+- Renamed classes:
+  - `GamesStoreSDK` → `LudolioSDK`
+  - `GamesStoreAchievements` → `LudolioAchievements`
+  - `GamesStoreUser` → `LudolioUser`
+- Updated command-line arguments:
+  - `--edu-steam-token` → `--ludolio-token`
+  - `--edu-steam-user` → `--ludolio-user`
+  - `--edu-steam-client-port` → `--ludolio-client-port`
+- Updated package name: `com.gamesstore.sdk` → `com.ludolio.sdk`
+- Updated repository: `games-store-unity-sdk` → `ludolio-unity-sdk`
+- All debug logs now use `[Ludolio*]` prefixes
+- All error messages reference "Ludolio client"
+
+### Migration Guide
+To migrate from Games Store SDK to Ludolio SDK:
+1. Update package reference to `com.ludolio.sdk`
+2. Replace `using GamesStore.SDK` with `using Ludolio.SDK`
+3. Replace all class names: `GamesStore*` → `Ludolio*`
+4. Rebuild your game
 
 ## [0.0.5] - 2025-10-10
 
 ### Security
 - **BREAKING CHANGE**: SDK now enforces strict validation of ALL required command-line arguments
-- Added validation for `--edu-steam-client-port` argument (previously only checked token and userId)
+- Added validation for `--ludolio-client-port` argument (previously only checked token and userId)
 - Game now quits automatically after 3 seconds if any required argument is missing
 - Added detailed error messages showing which arguments are missing
 - Improved security to prevent unauthorized game access by manipulating command-line arguments
 
 ### Changed
-- `GamesStoreSDK.Init()` now validates all three required arguments: token, userId, AND clientPort
+- `LudolioSDK.Init()` now validates all three required arguments: token, userId, AND clientPort
 - Added `QuitAfterDelay()` coroutine for graceful shutdown when initialization fails
 - Enhanced debug logging to show which arguments are present/missing during initialization
 
@@ -36,11 +61,11 @@ All notable changes to the Games Store Unity SDK will be documented in this file
 ## [1.0.0] - 2025-10-09
 
 ### Added
-- Initial release of Games Store Unity SDK
+- Initial release of Ludolio Unity SDK
 - Core SDK initialization and authentication system
 - Achievements API with unlock and progress tracking
 - User information API
-- Automatic token validation with Games Store client
+- Automatic token validation with Ludolio client
 - Process lifecycle management (auto-close when client disconnects)
 - Health check monitoring
 - Steamworks-like API design for easy integration
@@ -48,12 +73,12 @@ All notable changes to the Games Store Unity SDK will be documented in this file
 - Support for Unity 2019.4 and later
 
 ### Features
-- **GamesStoreSDK**: Main SDK class for initialization and authentication
-- **GamesStoreAchievements**: Achievement management with events
-- **GamesStoreUser**: User information retrieval
+- **LudolioSDK**: Main SDK class for initialization and authentication
+- **LudolioAchievements**: Achievement management with events
+- **LudolioUser**: User information retrieval
 - Event-driven architecture for SDK callbacks
 - Automatic command-line argument parsing
-- Local API communication with Games Store client
+- Local API communication with Ludolio client
 - Comprehensive error handling and logging
 
 ### Documentation
