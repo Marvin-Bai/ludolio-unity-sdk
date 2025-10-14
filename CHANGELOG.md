@@ -30,7 +30,7 @@ All notable changes to the Games Store Unity SDK will be documented in this file
 ## [0.0.3] - 2025-10-10
 
 ### Fixed
-- Fixed package folder structure to match Unity package naming convention (renamed from `root` to `com.gamesstore.sdk`)
+- Fixed package folder structure to match Unity package naming convention (renamed from `root` to `com.ludolio.sdk`)
 - This fixes auto-referencing issues where the SDK namespace wasn't automatically available in projects
 
 ## [1.0.0] - 2025-10-09

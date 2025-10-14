@@ -45,7 +45,7 @@ Add to `Packages/manifest.json`:
 ```json
 {
   "dependencies": {
-    "com.gamesstore.sdk": "https://github.com/Marvin-Bai/games-store-unity-sdk.git#v1.0.0"
+    "com.ludolio.sdk": "https://github.com/Marvin-Bai/games-store-unity-sdk.git#v1.0.0"
   }
 }
 ```
