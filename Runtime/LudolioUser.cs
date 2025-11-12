@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using System.Runtime.InteropServices;
 
 namespace Ludolio.SDK
 {
@@ -17,7 +18,10 @@ namespace Ludolio.SDK
         /// <returns>User ID string</returns>
         public static string GetUserId()
         {
-            return LudolioNative.Ludolio_GetUserId();
+            IntPtr ptr = LudolioNative.Ludolio_GetUserId();
+            string id = Marshal.PtrToStringAnsi(ptr);
+            LudolioNative.Ludolio_FreeString(ptr);
+            return id;
         }
 
         /// <summary>
@@ -26,7 +30,10 @@ namespace Ludolio.SDK
         /// <returns>User name string</returns>
         public static string GetUserName()
         {
-            return LudolioNative.Ludolio_GetUserName();
+            IntPtr ptr = LudolioNative.Ludolio_GetUserName();
+            string name = Marshal.PtrToStringAnsi(ptr);
+            LudolioNative.Ludolio_FreeString(ptr);
+            return name;
         }
 
         /// <summary>
@@ -61,7 +68,7 @@ namespace Ludolio.SDK
             {
                 if (string.IsNullOrEmpty(userId))
                 {
-                    string error = LudolioNative.Ludolio_GetLastError();
+                    string error = LudolioSDK.GetLastError();
                     Debug.LogError($"[LudolioUser] Failed to get user info: {error}");
                     callback?.Invoke(null);
                     return;

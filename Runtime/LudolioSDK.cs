@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using System.Runtime.InteropServices;
 
 namespace Ludolio.SDK
 {
@@ -65,7 +66,10 @@ namespace Ludolio.SDK
             {
                 return null;
             }
-            return LudolioNative.Ludolio_GetUserId();
+            IntPtr ptr = LudolioNative.Ludolio_GetUserId();
+            string id = Marshal.PtrToStringAnsi(ptr);
+            LudolioNative.Ludolio_FreeString(ptr);
+            return id;
         }
 
         /// <summary>
@@ -134,7 +138,7 @@ namespace Ludolio.SDK
 
             if (!success)
             {
-                string error = LudolioNative.Ludolio_GetLastError();
+                string error = GetLastError();
                 Debug.LogError($"[LudolioSDK] Failed to initialize: {error}");
                 Debug.LogError("[LudolioSDK] This could mean:");
                 Debug.LogError("[LudolioSDK] - Invalid or expired session token");
@@ -149,7 +153,9 @@ namespace Ludolio.SDK
             }
 
             // Get gameId from native SDK (extracted from session token)
-            Instance.gameId = LudolioNative.Ludolio_GetGameId();
+            IntPtr gameIdPtr = LudolioNative.Ludolio_GetGameId();
+            Instance.gameId = Marshal.PtrToStringAnsi(gameIdPtr);
+            LudolioNative.Ludolio_FreeString(gameIdPtr);
 
             Debug.Log($"[LudolioSDK] ✓ Initialized successfully for App ID: {appId}");
             Debug.Log($"[LudolioSDK] ✓ Session token verified");
@@ -220,7 +226,7 @@ namespace Ludolio.SDK
                         }
                         else
                         {
-                            string error = LudolioNative.Ludolio_GetLastError();
+                            string error = GetLastError();
                             Debug.LogError($"[LudolioSDK] Authentication failed: {error}");
                             OnAuthenticationComplete?.Invoke(false);
 
@@ -240,7 +246,10 @@ namespace Ludolio.SDK
         /// </summary>
         public static string GetLastError()
         {
-            return LudolioNative.Ludolio_GetLastError();
+            IntPtr ptr = LudolioNative.Ludolio_GetLastError();
+            string s = Marshal.PtrToStringAnsi(ptr);
+            LudolioNative.Ludolio_FreeString(ptr);
+            return s;
         }
 
         private void OnApplicationQuit()

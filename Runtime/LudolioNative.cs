@@ -13,10 +13,10 @@ namespace Ludolio.SDK
 
         // Callback delegates matching C++ function pointers
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate void AuthCallback(bool success);
+        public delegate void AuthCallback([MarshalAs(UnmanagedType.I1)] bool success);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate void AchievementCallback(bool success);
+        public delegate void AchievementCallback([MarshalAs(UnmanagedType.I1)] bool success);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         public delegate void UserInfoCallback(
@@ -46,8 +46,7 @@ namespace Ludolio.SDK
         );
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-        [return: MarshalAs(UnmanagedType.LPStr)]
-        public static extern string Ludolio_GetGameId();
+        public static extern IntPtr Ludolio_GetGameId();
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Ludolio_Shutdown();
@@ -66,12 +65,10 @@ namespace Ludolio.SDK
 
         // User Info
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-        [return: MarshalAs(UnmanagedType.LPStr)]
-        public static extern string Ludolio_GetUserId();
+        public static extern IntPtr Ludolio_GetUserId();
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-        [return: MarshalAs(UnmanagedType.LPStr)]
-        public static extern string Ludolio_GetUserName();
+        public static extern IntPtr Ludolio_GetUserName();
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Ludolio_GetUserInfo(UserInfoCallback callback);
@@ -94,8 +91,7 @@ namespace Ludolio.SDK
 
         // Utility
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-        [return: MarshalAs(UnmanagedType.LPStr)]
-        public static extern string Ludolio_GetLastError();
+        public static extern IntPtr Ludolio_GetLastError();
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Ludolio_FreeString(IntPtr str);

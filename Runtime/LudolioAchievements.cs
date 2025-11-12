@@ -42,25 +42,25 @@ namespace Ludolio.SDK
                 if (success)
                 {
                     Debug.Log($"[LudolioAchievements] Achievement unlocked: {achievementId}");
-                    
+
                     // Update cache
                     if (cachedAchievements.ContainsKey(achievementId))
                     {
                         cachedAchievements[achievementId].unlocked = true;
                     }
-                    
+
                     OnAchievementUnlocked?.Invoke(achievementId);
                 }
                 else
                 {
-                    string error = LudolioNative.Ludolio_GetLastError();
+                    string error = LudolioSDK.GetLastError();
                     Debug.LogError($"[LudolioAchievements] Failed to unlock achievement: {error}");
                 }
-                
+
                 callback?.Invoke(success);
             });
         }
-        
+
         /// <summary>
         /// Set progress for an achievement (for progressive achievements)
         /// </summary>
@@ -115,7 +115,7 @@ namespace Ludolio.SDK
             {
                 if (string.IsNullOrEmpty(jsonData))
                 {
-                    string error = LudolioNative.Ludolio_GetLastError();
+                    string error = LudolioSDK.GetLastError();
                     Debug.LogError($"[LudolioAchievements] Failed to get achievements: {error}");
                     callback?.Invoke(null);
                     return;
@@ -125,7 +125,7 @@ namespace Ludolio.SDK
                 {
                     // Parse JSON response
                     var response = JsonUtility.FromJson<AchievementsResponse>("{\"achievements\":" + jsonData + "}");
-                    
+
                     // Update cache
                     cachedAchievements.Clear();
                     foreach (var achievement in response.achievements)
