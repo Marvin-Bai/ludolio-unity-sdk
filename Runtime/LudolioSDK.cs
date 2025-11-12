@@ -16,6 +16,9 @@ namespace Ludolio.SDK
         private string sessionToken;
         private string gameId;
 
+        // Keep callback delegates alive to prevent garbage collection
+        private LudolioNative.AuthCallback authCallback;
+
         // Events
         public static event Action OnInitialized;
         public static event Action<bool> OnAuthenticationComplete;
@@ -49,9 +52,16 @@ namespace Ludolio.SDK
         public static bool IsAuthenticated => LudolioNative.Ludolio_IsAuthenticated();
 
         /// <summary>
-        /// Gets the current user ID
+        /// Gets the current user ID (only available after authentication completes)
         /// </summary>
-        public static string GetUserId() => LudolioNative.Ludolio_GetUserId();
+        public static string GetUserId()
+        {
+            if (!IsAuthenticated)
+            {
+                return null;
+            }
+            return LudolioNative.Ludolio_GetUserId();
+        }
 
         /// <summary>
         /// Gets the current game ID
@@ -156,13 +166,28 @@ namespace Ludolio.SDK
                 {
                     sessionToken = args[i + 1];
                     Debug.Log($"[LudolioSDK] Session token found in command line arguments");
+                    try
+                    {
+                        Debug.Log($"[LudolioSDK] Session token: {sessionToken}");
+                        var parts = sessionToken.Split(':');
+                        var payloadLen = parts.Length > 0 ? parts[0].Length : 0;
+                        var sigLen = parts.Length > 1 ? parts[1].Length : 0;
+                        Debug.Log($"[LudolioSDK] - PayloadB64 length: {payloadLen}");
+                        Debug.Log($"[LudolioSDK] - SignatureB64 length: {sigLen}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[LudolioSDK] Failed to inspect session token: {ex.Message}");
+                    }
+
                 }
             }
         }
 
         private void Authenticate()
         {
-            LudolioNative.Ludolio_Authenticate((success) =>
+            // Store callback as member variable to prevent garbage collection
+            authCallback = (success) =>
             {
                 if (success)
                 {
@@ -179,7 +204,9 @@ namespace Ludolio.SDK
                     Application.Quit();
 #endif
                 }
-            });
+            };
+
+            LudolioNative.Ludolio_Authenticate(authCallback);
         }
 
         /// <summary>

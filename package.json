@@ -17,7 +17,7 @@
         "drm",
         "steamworks"
     ],
-    "version": "0.1.5",
+    "version": "0.1.6",
     "unity": "2019.4",
     "description": "Official Unity SDK for Ludolio integration. Provides Steamworks-like API for authentication, achievements, and user management.",
     "dependencies": {},
