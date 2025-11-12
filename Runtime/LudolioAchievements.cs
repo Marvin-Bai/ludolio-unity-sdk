@@ -1,13 +1,12 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Networking;
 
 namespace Ludolio.SDK
 {
     /// <summary>
     /// Achievements API for Ludolio. Similar to Steamworks achievements.
+    /// Uses native DLL for secure communication with Desktop App.
     /// </summary>
     public static class LudolioAchievements
     {
@@ -37,7 +36,29 @@ namespace Ludolio.SDK
                 return;
             }
 
-            LudolioSDK.Instance.StartCoroutine(UnlockAchievementCoroutine(achievementId, callback));
+            // Call native DLL function
+            LudolioNative.Ludolio_UnlockAchievement(achievementId, (success) =>
+            {
+                if (success)
+                {
+                    Debug.Log($"[LudolioAchievements] Achievement unlocked: {achievementId}");
+                    
+                    // Update cache
+                    if (cachedAchievements.ContainsKey(achievementId))
+                    {
+                        cachedAchievements[achievementId].unlocked = true;
+                    }
+                    
+                    OnAchievementUnlocked?.Invoke(achievementId);
+                }
+                else
+                {
+                    string error = LudolioNative.Ludolio_GetLastError();
+                    Debug.LogError($"[LudolioAchievements] Failed to unlock achievement: {error}");
+                }
+                
+                callback?.Invoke(success);
+            });
         }
         
         /// <summary>
@@ -82,86 +103,29 @@ namespace Ludolio.SDK
                 return;
             }
 
-            LudolioSDK.Instance.StartCoroutine(GetAchievementsCoroutine(callback));
-        }
-        
-        /// <summary>
-        /// Check if an achievement is unlocked
-        /// </summary>
-        /// <param name="achievementId">The unique identifier of the achievement</param>
-        /// <returns>True if the achievement is unlocked</returns>
-        public static bool IsAchievementUnlocked(string achievementId)
-        {
-            if (cachedAchievements.TryGetValue(achievementId, out AchievementData data))
+            if (!LudolioSDK.IsAuthenticated)
             {
-                return data.unlocked;
+                Debug.LogError("[LudolioAchievements] User not authenticated.");
+                callback?.Invoke(null);
+                return;
             }
-            return false;
-        }
-        
-        /// <summary>
-        /// Clear the achievement cache. Call this to refresh achievement data.
-        /// </summary>
-        public static void ClearCache()
-        {
-            cachedAchievements.Clear();
-        }
-        
-        private static IEnumerator UnlockAchievementCoroutine(string achievementId, Action<bool> callback)
-        {
-            int port = LudolioSDK.Instance.GetClientPort();
-            string url = $"http://localhost:{port}/api/achievements/unlock";
 
-            var requestData = new UnlockAchievementRequest
+            // Call native DLL function
+            LudolioNative.Ludolio_GetAchievements((jsonData) =>
             {
-                achievementId = achievementId,
-                gameId = LudolioSDK.GetGameId(),
-                userId = LudolioSDK.GetUserId(),
-                timestamp = DateTime.UtcNow.ToString("o")
-            };
-
-            string jsonData = JsonUtility.ToJson(requestData);
-
-            using (UnityWebRequest request = UnityWebRequest.Post(url, jsonData, "application/json"))
-            {
-                yield return request.SendWebRequest();
-
-                if (request.result == UnityWebRequest.Result.Success)
+                if (string.IsNullOrEmpty(jsonData))
                 {
-                    Debug.Log($"[LudolioAchievements] Achievement unlocked: {achievementId}");
-
-                    // Update cache
-                    if (cachedAchievements.ContainsKey(achievementId))
-                    {
-                        cachedAchievements[achievementId].unlocked = true;
-                    }
-
-                    OnAchievementUnlocked?.Invoke(achievementId);
-                    callback?.Invoke(true);
+                    string error = LudolioNative.Ludolio_GetLastError();
+                    Debug.LogError($"[LudolioAchievements] Failed to get achievements: {error}");
+                    callback?.Invoke(null);
+                    return;
                 }
-                else
+
+                try
                 {
-                    Debug.LogError($"[LudolioAchievements] Failed to unlock achievement: {request.error}");
-                    callback?.Invoke(false);
-                }
-            }
-        }
-        
-        private static IEnumerator GetAchievementsCoroutine(Action<List<AchievementData>> callback)
-        {
-            int port = LudolioSDK.Instance.GetClientPort();
-            string gameId = LudolioSDK.GetGameId();
-            string userId = LudolioSDK.GetUserId();
-            string url = $"http://localhost:{port}/api/achievements/{gameId}/{userId}";
-
-            using (UnityWebRequest request = UnityWebRequest.Get(url))
-            {
-                yield return request.SendWebRequest();
-
-                if (request.result == UnityWebRequest.Result.Success)
-                {
-                    var response = JsonUtility.FromJson<AchievementsResponse>(request.downloadHandler.text);
-
+                    // Parse JSON response
+                    var response = JsonUtility.FromJson<AchievementsResponse>("{\"achievements\":" + jsonData + "}");
+                    
                     // Update cache
                     cachedAchievements.Clear();
                     foreach (var achievement in response.achievements)
@@ -172,42 +136,61 @@ namespace Ludolio.SDK
                     Debug.Log($"[LudolioAchievements] Loaded {response.achievements.Count} achievements");
                     callback?.Invoke(response.achievements);
                 }
-                else
+                catch (Exception ex)
                 {
-                    Debug.LogError($"[LudolioAchievements] Failed to get achievements: {request.error}");
+                    Debug.LogError($"[LudolioAchievements] Failed to parse achievements: {ex.Message}");
                     callback?.Invoke(null);
                 }
-            }
+            });
         }
-        
-        [Serializable]
-        private class UnlockAchievementRequest
+
+        /// <summary>
+        /// Check if an achievement is unlocked (from cache)
+        /// </summary>
+        /// <param name="achievementId">The unique identifier of the achievement</param>
+        /// <returns>True if the achievement is unlocked</returns>
+        public static bool IsAchievementUnlocked(string achievementId)
         {
-            public string achievementId;
-            public string gameId;
-            public string userId;
-            public string timestamp;
+            // First check native cache
+            if (LudolioNative.Ludolio_IsAchievementUnlocked(achievementId))
+            {
+                return true;
+            }
+
+            // Fallback to local cache
+            if (cachedAchievements.TryGetValue(achievementId, out var achievement))
+            {
+                return achievement.unlocked;
+            }
+
+            return false;
         }
-        
+
+        /// <summary>
+        /// Clear the local achievement cache
+        /// </summary>
+        public static void ClearCache()
+        {
+            cachedAchievements.Clear();
+        }
+
+        // Data structures
+        [Serializable]
+        public class AchievementData
+        {
+            public string id;
+            public string name;
+            public string description;
+            public string icon;
+            public bool unlocked;
+            public string unlockedAt;
+        }
+
         [Serializable]
         private class AchievementsResponse
         {
             public List<AchievementData> achievements;
         }
-    }
-    
-    /// <summary>
-    /// Data structure for an achievement
-    /// </summary>
-    [Serializable]
-    public class AchievementData
-    {
-        public string id;
-        public string name;
-        public string description;
-        public bool unlocked;
-        public string unlockedAt;
-        public string iconUrl;
     }
 }
 

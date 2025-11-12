@@ -39,8 +39,8 @@ public class GameManager : MonoBehaviour
 {
     void Start()
     {
-        // Initialize SDK with your game ID
-        if (LudolioSDK.Init("your-game-id"))
+        // Initialize SDK with your App ID
+        if (LudolioSDK.Init(12345))
         {
             Debug.Log("Ludolio SDK initialized!");
         }
@@ -59,7 +59,7 @@ public class GameManager : MonoBehaviour
 void Start()
 {
     LudolioSDK.OnAuthenticationComplete += OnAuthComplete;
-    LudolioSDK.Init("your-game-id");
+    LudolioSDK.Init(12345);
 }
 
 void OnAuthComplete(bool success)
@@ -117,7 +117,7 @@ Main SDK class for initialization and core functionality.
 
 #### Methods
 
-- `static bool Init(string gameId)` - Initialize the SDK with your game ID
+- `static bool Init(int appId)` - Initialize the SDK with your App ID
 - `static void Shutdown()` - Shutdown the SDK (call on game exit)
 - `static bool IsInitialized` - Check if SDK is initialized
 - `static bool IsAuthenticated` - Check if user is authenticated
@@ -156,7 +156,7 @@ User information API.
 - `static void GetUserInfo(Action<UserInfo> callback)`
 - `static string GetUserId()`
 - `static string GetUserName()`
-- `static string GetUserEmail()`
+
 - `static void ClearCache()`
 
 ## Complete Example
@@ -176,7 +176,7 @@ public class MyGame : MonoBehaviour
         LudolioAchievements.OnAchievementUnlocked += OnAchievement;
 
         // Initialize
-        LudolioSDK.Init("my-awesome-game");
+        LudolioSDK.Init(12345);
     }
 
     void OnAuth(bool success)
@@ -215,15 +215,7 @@ public class MyGame : MonoBehaviour
 4. **Gameplay**: Your game can now use all SDK features (achievements, user info, etc.)
 5. **Lifecycle**: SDK monitors the client connection and closes the game if client disconnects
 
-## Local API Endpoints
 
-The SDK communicates with the Ludolio client via HTTP (localhost only):
-
-- `GET /api/health` - Health check
-- `POST /api/validate-token` - Token validation
-- `POST /api/achievements/unlock` - Unlock achievement
-- `GET /api/achievements/{gameId}/{userId}` - Get achievements
-- `GET /api/user/info` - Get user information
 
 ## Requirements
 

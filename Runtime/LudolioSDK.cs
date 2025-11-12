@@ -1,33 +1,26 @@
 using System;
-using System.Collections;
 using UnityEngine;
-using UnityEngine.Networking;
 
 namespace Ludolio.SDK
 {
     /// <summary>
     /// Main SDK class for Ludolio integration. Similar to Steamworks API.
     /// Initialize this SDK at the start of your game to enable authentication and features.
+    /// Uses native DLL for secure named pipe communication with Desktop App.
     /// </summary>
     public class LudolioSDK : MonoBehaviour
     {
         private static LudolioSDK instance;
-        
-        // Authentication data
-        private string authToken;
-        private string userId;
-        private int clientPort = 3000;
+
+        // Authentication data from command line
+        private string sessionToken;
         private string gameId;
-        
-        // State
-        private bool isInitialized = false;
-        private bool isAuthenticated = false;
-        
+
         // Events
         public static event Action OnInitialized;
         public static event Action<bool> OnAuthenticationComplete;
         public static event Action OnClientDisconnected;
-        
+
         /// <summary>
         /// Gets the singleton instance of the SDK
         /// </summary>
@@ -44,27 +37,27 @@ namespace Ludolio.SDK
                 return instance;
             }
         }
-        
+
         /// <summary>
         /// Returns true if the SDK has been initialized
         /// </summary>
-        public static bool IsInitialized => Instance.isInitialized;
-        
+        public static bool IsInitialized => LudolioNative.Ludolio_IsInitialized();
+
         /// <summary>
         /// Returns true if the user is authenticated
         /// </summary>
-        public static bool IsAuthenticated => Instance.isAuthenticated;
-        
+        public static bool IsAuthenticated => LudolioNative.Ludolio_IsAuthenticated();
+
         /// <summary>
         /// Gets the current user ID
         /// </summary>
-        public static string GetUserId() => Instance.userId;
-        
+        public static string GetUserId() => LudolioNative.Ludolio_GetUserId();
+
         /// <summary>
         /// Gets the current game ID
         /// </summary>
         public static string GetGameId() => Instance.gameId;
-        
+
         private void Awake()
         {
             if (instance != null && instance != this)
@@ -72,74 +65,84 @@ namespace Ludolio.SDK
                 Destroy(gameObject);
                 return;
             }
-            
+
             instance = this;
             DontDestroyOnLoad(gameObject);
         }
-        
+
         /// <summary>
         /// Initialize the SDK. Call this at the start of your game.
         /// </summary>
-        /// <param name="gameId">Your game's unique identifier</param>
+        /// <param name="appId">Your game's App ID (like Steam's appid)</param>
         /// <returns>True if initialization was successful</returns>
-        public static bool Init(string gameId)
+        public static bool Init(int appId)
         {
-            if (Instance.isInitialized)
+            if (IsInitialized)
             {
                 Debug.LogWarning("[LudolioSDK] Already initialized");
                 return true;
             }
 
-            Instance.gameId = gameId;
             Instance.ReadCommandLineArguments();
 
-            // Validate that we have ALL required data
-            bool hasToken = !string.IsNullOrEmpty(Instance.authToken);
-            bool hasUserId = !string.IsNullOrEmpty(Instance.userId);
-            bool hasValidPort = Instance.clientPort > 0 && Instance.clientPort < 65536;
+            // Validate that we have session token
+            bool hasSessionToken = !string.IsNullOrEmpty(Instance.sessionToken);
 
-            if (!hasToken || !hasUserId || !hasValidPort)
+            if (!hasSessionToken)
             {
-                Debug.LogError("[LudolioSDK] Failed to initialize: Missing required authentication data.");
-                Debug.LogError($"[LudolioSDK] - Token: {(hasToken ? "✓" : "✗ MISSING")}");
-                Debug.LogError($"[LudolioSDK] - User ID: {(hasUserId ? "✓" : "✗ MISSING")}");
-                Debug.LogError($"[LudolioSDK] - Client Port: {(hasValidPort ? "✓" : "✗ MISSING/INVALID")}");
-                Debug.LogError("[LudolioSDK] Make sure the game is launched from the Ludolio client.");
-                Debug.LogError("[LudolioSDK] Required arguments: --ludolio-token, --ludolio-user, --ludolio-client-port");
+                Debug.LogError("[LudolioSDK] Failed to initialize: Missing session token.");
+                Debug.LogError("[LudolioSDK] Make sure the game is launched from the Ludolio Desktop Client.");
+                Debug.LogError("[LudolioSDK] Required argument: --ludolio-session");
 
-                #if !UNITY_EDITOR
+#if !UNITY_EDITOR
                 Debug.LogError("[LudolioSDK] Game will quit in 3 seconds due to missing authentication.");
-                Instance.StartCoroutine(Instance.QuitAfterDelay(1f));
-                #endif
-
+                Application.Quit();
+#endif
                 return false;
             }
 
-            Instance.isInitialized = true;
-            Debug.Log($"[LudolioSDK] Initialized successfully for game: {gameId}");
-            Debug.Log($"[LudolioSDK] User ID: {Instance.userId}");
-            Debug.Log($"[LudolioSDK] Client Port: {Instance.clientPort}");
+            // Initialize native SDK (it will parse token and verify appId matches)
+            bool success = LudolioNative.Ludolio_InitWithAppId(appId, Instance.sessionToken);
+
+            if (!success)
+            {
+                string error = LudolioNative.Ludolio_GetLastError();
+                Debug.LogError($"[LudolioSDK] Failed to initialize: {error}");
+                Debug.LogError("[LudolioSDK] This could mean:");
+                Debug.LogError("[LudolioSDK] - Invalid or expired session token");
+                Debug.LogError("[LudolioSDK] - App ID mismatch (expected {appId})");
+                Debug.LogError("[LudolioSDK] - Device ID mismatch (token from different device)");
+                Debug.LogError("[LudolioSDK] - Desktop App not running");
+
+#if !UNITY_EDITOR
+                Application.Quit();
+#endif
+                return false;
+            }
+
+            // Get gameId from native SDK (extracted from session token)
+            Instance.gameId = LudolioNative.Ludolio_GetGameId();
+
+            Debug.Log($"[LudolioSDK] ✓ Initialized successfully for App ID: {appId}");
+            Debug.Log($"[LudolioSDK] ✓ Session token verified");
+            Debug.Log($"[LudolioSDK] ✓ Connected to Desktop App");
 
             // Start authentication process
-            Instance.StartCoroutine(Instance.AuthenticateCoroutine());
-
-            // Start periodic health check
-            Instance.StartCoroutine(Instance.PeriodicHealthCheck());
+            Instance.Authenticate();
 
             OnInitialized?.Invoke();
             return true;
         }
-        
+
         /// <summary>
         /// Shutdown the SDK. Call this when your game is closing.
         /// </summary>
         public static void Shutdown()
         {
-            if (Instance.isInitialized)
+            if (IsInitialized)
             {
                 Debug.Log("[LudolioSDK] Shutting down");
-                Instance.isInitialized = false;
-                Instance.isAuthenticated = false;
+                LudolioNative.Ludolio_Shutdown();
             }
         }
 
@@ -149,116 +152,47 @@ namespace Ludolio.SDK
 
             for (int i = 0; i < args.Length; i++)
             {
-                if (args[i] == "--ludolio-token" && i + 1 < args.Length)
+                if (args[i] == "--ludolio-session" && i + 1 < args.Length)
                 {
-                    authToken = args[i + 1];
-                }
-                else if (args[i] == "--ludolio-user" && i + 1 < args.Length)
-                {
-                    userId = args[i + 1];
-                }
-                else if (args[i] == "--ludolio-client-port" && i + 1 < args.Length)
-                {
-                    if (int.TryParse(args[i + 1], out int port))
-                    {
-                        clientPort = port;
-                    }
+                    sessionToken = args[i + 1];
+                    Debug.Log($"[LudolioSDK] Session token found in command line arguments");
                 }
             }
-
-            Debug.Log($"[LudolioSDK] Command line args parsed - Port: {clientPort}, User: {userId}");
         }
-        
-        private IEnumerator AuthenticateCoroutine()
+
+        private void Authenticate()
         {
-            string url = $"http://localhost:{clientPort}/api/validate-token";
-            
-            var requestData = new TokenValidationRequest
+            LudolioNative.Ludolio_Authenticate((success) =>
             {
-                token = authToken,
-                userId = userId,
-                gameId = gameId
-            };
-            
-            string jsonData = JsonUtility.ToJson(requestData);
-            
-            using (UnityWebRequest request = UnityWebRequest.Post(url, jsonData, "application/json"))
-            {
-                yield return request.SendWebRequest();
-                
-                if (request.result == UnityWebRequest.Result.Success)
+                if (success)
                 {
-                    var response = JsonUtility.FromJson<TokenValidationResponse>(request.downloadHandler.text);
-                    
-                    if (response.valid)
-                    {
-                        isAuthenticated = true;
-                        Debug.Log("[LudolioSDK] Authentication successful!");
-                        OnAuthenticationComplete?.Invoke(true);
-                    }
-                    else
-                    {
-                        Debug.LogError($"[LudolioSDK] Authentication failed: {response.message}");
-                        OnAuthenticationComplete?.Invoke(false);
-                        Application.Quit();
-                    }
+                    Debug.Log("[LudolioSDK] Authentication successful!");
+                    OnAuthenticationComplete?.Invoke(true);
                 }
                 else
                 {
-                    Debug.LogError($"[LudolioSDK] Authentication request failed: {request.error}");
+                    string error = LudolioNative.Ludolio_GetLastError();
+                    Debug.LogError($"[LudolioSDK] Authentication failed: {error}");
                     OnAuthenticationComplete?.Invoke(false);
+
+#if !UNITY_EDITOR
                     Application.Quit();
+#endif
                 }
-            }
-        }
-        
-        private IEnumerator PeriodicHealthCheck()
-        {
-            while (isInitialized)
-            {
-                yield return new WaitForSeconds(30f); // Check every 30 seconds
-
-                string url = $"http://localhost:{clientPort}/api/health";
-
-                using (UnityWebRequest request = UnityWebRequest.Get(url))
-                {
-                    request.timeout = 5;
-                    yield return request.SendWebRequest();
-
-                    if (request.result != UnityWebRequest.Result.Success)
-                    {
-                        Debug.LogWarning("[LudolioSDK] Client disconnected. Closing game...");
-                        OnClientDisconnected?.Invoke();
-                        Application.Quit();
-                        yield break;
-                    }
-                }
-            }
+            });
         }
 
-        private IEnumerator QuitAfterDelay(float delay)
+        /// <summary>
+        /// Get the last error message from the native SDK
+        /// </summary>
+        public static string GetLastError()
         {
-            yield return new WaitForSeconds(delay);
-            Debug.LogError("[LudolioSDK] Quitting game due to authentication failure.");
-            Application.Quit();
+            return LudolioNative.Ludolio_GetLastError();
         }
 
-        internal string GetAuthToken() => authToken;
-        internal int GetClientPort() => clientPort;
-        
-        [Serializable]
-        private class TokenValidationRequest
+        private void OnApplicationQuit()
         {
-            public string token;
-            public string userId;
-            public string gameId;
-        }
-        
-        [Serializable]
-        private class TokenValidationResponse
-        {
-            public bool valid;
-            public string message;
+            Shutdown();
         }
     }
 }

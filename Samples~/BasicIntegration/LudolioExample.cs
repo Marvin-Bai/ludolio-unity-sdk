@@ -8,8 +8,8 @@ using Ludolio.SDK;
 public class LudolioExample : MonoBehaviour
 {
     [Header("Configuration")]
-    [Tooltip("Your game's unique ID from Ludolio")]
-    public string gameId = "your-game-id";
+    [Tooltip("Your game's App ID from Ludolio")]
+    public int appId = 12345;
 
     [Header("Test Achievement")]
     public string testAchievementId = "first_win";
@@ -26,7 +26,7 @@ public class LudolioExample : MonoBehaviour
         LudolioAchievements.OnAchievementUnlocked += OnAchievementUnlocked;
 
         // Initialize the SDK - similar to SteamAPI.Init()
-        if (LudolioSDK.Init(gameId))
+        if (LudolioSDK.Init(appId))
         {
             Debug.Log("Ludolio SDK initialization started...");
         }
@@ -48,12 +48,12 @@ public class LudolioExample : MonoBehaviour
         // Shutdown the SDK - similar to SteamAPI.Shutdown()
         LudolioSDK.Shutdown();
     }
-    
+
     private void OnSDKInitialized()
     {
         Debug.Log("SDK Initialized!");
     }
-    
+
     private void OnAuthenticationComplete(bool success)
     {
         if (success)

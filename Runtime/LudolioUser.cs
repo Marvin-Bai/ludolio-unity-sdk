@@ -1,21 +1,38 @@
 using System;
-using System.Collections;
 using UnityEngine;
-using UnityEngine.Networking;
 
 namespace Ludolio.SDK
 {
     /// <summary>
-    /// User API for Ludolio. Get information about the current user.
+    /// User API for Ludolio. Provides access to current user information.
+    /// Uses native DLL for secure communication with Desktop App.
     /// </summary>
     public static class LudolioUser
     {
-        private static UserInfo cachedUserInfo;
+        private static UserInfo cachedUserInfo = null;
 
         /// <summary>
-        /// Get information about the current user
+        /// Get the current user's ID
         /// </summary>
-        /// <param name="callback">Callback with user information</param>
+        /// <returns>User ID string</returns>
+        public static string GetUserId()
+        {
+            return LudolioNative.Ludolio_GetUserId();
+        }
+
+        /// <summary>
+        /// Get the current user's name
+        /// </summary>
+        /// <returns>User name string</returns>
+        public static string GetUserName()
+        {
+            return LudolioNative.Ludolio_GetUserName();
+        }
+
+        /// <summary>
+        /// Get full user information
+        /// </summary>
+        /// <param name="callback">Callback with user info</param>
         public static void GetUserInfo(Action<UserInfo> callback)
         {
             if (!LudolioSDK.IsInitialized)
@@ -32,98 +49,52 @@ namespace Ludolio.SDK
                 return;
             }
 
-            // Return cached data if available
+            // Return cached info if available
             if (cachedUserInfo != null)
             {
                 callback?.Invoke(cachedUserInfo);
                 return;
             }
 
-            LudolioSDK.Instance.StartCoroutine(GetUserInfoCoroutine(callback));
+            // Call native DLL function
+            LudolioNative.Ludolio_GetUserInfo((userId, userName, email) =>
+            {
+                if (string.IsNullOrEmpty(userId))
+                {
+                    string error = LudolioNative.Ludolio_GetLastError();
+                    Debug.LogError($"[LudolioUser] Failed to get user info: {error}");
+                    callback?.Invoke(null);
+                    return;
+                }
+
+                cachedUserInfo = new UserInfo
+                {
+                    id = userId,
+                    name = userName,
+                    email = email
+                };
+
+                Debug.Log($"[LudolioUser] User info loaded: {userName}");
+                callback?.Invoke(cachedUserInfo);
+            });
         }
 
         /// <summary>
-        /// Get the current user's ID
-        /// </summary>
-        /// <returns>User ID string</returns>
-        public static string GetUserId()
-        {
-            return LudolioSDK.GetUserId();
-        }
-        
-        /// <summary>
-        /// Get the current user's name (from cached data)
-        /// </summary>
-        /// <returns>User name or null if not cached</returns>
-        public static string GetUserName()
-        {
-            return cachedUserInfo?.name;
-        }
-        
-        /// <summary>
-        /// Get the current user's email (from cached data)
-        /// </summary>
-        /// <returns>User email or null if not cached</returns>
-        public static string GetUserEmail()
-        {
-            return cachedUserInfo?.email;
-        }
-        
-        /// <summary>
-        /// Clear the cached user info
+        /// Clear the cached user info (forces refresh on next GetUserInfo call)
         /// </summary>
         public static void ClearCache()
         {
             cachedUserInfo = null;
         }
-        
-        private static IEnumerator GetUserInfoCoroutine(Action<UserInfo> callback)
-        {
-            int port = LudolioSDK.Instance.GetClientPort();
-            string url = $"http://localhost:{port}/api/user/info";
 
-            using (UnityWebRequest request = UnityWebRequest.Get(url))
-            {
-                // Add authorization header
-                string token = LudolioSDK.Instance.GetAuthToken();
-                request.SetRequestHeader("Authorization", $"Bearer {token}");
-
-                yield return request.SendWebRequest();
-
-                if (request.result == UnityWebRequest.Result.Success)
-                {
-                    var response = JsonUtility.FromJson<UserInfoResponse>(request.downloadHandler.text);
-                    cachedUserInfo = response.user;
-
-                    Debug.Log($"[LudolioUser] User info loaded: {cachedUserInfo.name}");
-                    callback?.Invoke(cachedUserInfo);
-                }
-                else
-                {
-                    Debug.LogError($"[LudolioUser] Failed to get user info: {request.error}");
-                    callback?.Invoke(null);
-                }
-            }
-        }
-        
+        // Data structures
         [Serializable]
-        private class UserInfoResponse
+        public class UserInfo
         {
-            public UserInfo user;
+            public string id;
+            public string name;
+            public string email;
         }
-    }
-    
-    /// <summary>
-    /// User information data structure
-    /// </summary>
-    [Serializable]
-    public class UserInfo
-    {
-        public string id;
-        public string email;
-        public string name;
-        public string role;
-        public string avatarUrl;
     }
 }
 
