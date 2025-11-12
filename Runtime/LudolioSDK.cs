@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Ludolio.SDK
@@ -18,6 +19,10 @@ namespace Ludolio.SDK
 
         // Keep callback delegates alive to prevent garbage collection
         private LudolioNative.AuthCallback authCallback;
+
+        // Queue for marshaling callbacks from background threads to main thread
+        private readonly Queue<Action> mainThreadQueue = new Queue<Action>();
+        private readonly object queueLock = new object();
 
         // Events
         public static event Action OnInitialized;
@@ -78,6 +83,19 @@ namespace Ludolio.SDK
 
             instance = this;
             DontDestroyOnLoad(gameObject);
+        }
+
+        private void Update()
+        {
+            // Process callbacks from background threads on the main thread
+            lock (queueLock)
+            {
+                while (mainThreadQueue.Count > 0)
+                {
+                    var action = mainThreadQueue.Dequeue();
+                    action?.Invoke();
+                }
+            }
         }
 
         /// <summary>
@@ -187,22 +205,30 @@ namespace Ludolio.SDK
         private void Authenticate()
         {
             // Store callback as member variable to prevent garbage collection
+            // Note: This callback will be invoked from a background thread by the native SDK
             authCallback = (success) =>
             {
-                if (success)
+                // Marshal to main thread since Unity APIs are not thread-safe
+                lock (queueLock)
                 {
-                    Debug.Log("[LudolioSDK] Authentication successful!");
-                    OnAuthenticationComplete?.Invoke(true);
-                }
-                else
-                {
-                    string error = LudolioNative.Ludolio_GetLastError();
-                    Debug.LogError($"[LudolioSDK] Authentication failed: {error}");
-                    OnAuthenticationComplete?.Invoke(false);
+                    mainThreadQueue.Enqueue(() =>
+                    {
+                        if (success)
+                        {
+                            Debug.Log("[LudolioSDK] Authentication successful!");
+                            OnAuthenticationComplete?.Invoke(true);
+                        }
+                        else
+                        {
+                            string error = LudolioNative.Ludolio_GetLastError();
+                            Debug.LogError($"[LudolioSDK] Authentication failed: {error}");
+                            OnAuthenticationComplete?.Invoke(false);
 
 #if !UNITY_EDITOR
-                    Application.Quit();
+                            Application.Quit();
 #endif
+                        }
+                    });
                 }
             };
 
