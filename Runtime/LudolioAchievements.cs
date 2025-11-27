@@ -15,6 +15,12 @@ namespace Ludolio.SDK
 
         private static Dictionary<string, AchievementData> cachedAchievements = new Dictionary<string, AchievementData>();
 
+        // Store active callbacks to prevent garbage collection when passed to native code
+        // Native code holds raw function pointers - if the delegate is GC'd, the pointer becomes invalid
+        private static readonly List<LudolioNative.AchievementCallback> activeAchievementCallbacks = new List<LudolioNative.AchievementCallback>();
+        private static readonly List<LudolioNative.AchievementListCallback> activeListCallbacks = new List<LudolioNative.AchievementListCallback>();
+        private static readonly object callbackLock = new object();
+
         /// <summary>
         /// Unlock an achievement for the current user
         /// </summary>
@@ -36,9 +42,18 @@ namespace Ludolio.SDK
                 return;
             }
 
-            // Call native DLL function
-            LudolioNative.Ludolio_UnlockAchievement(achievementId, (success) =>
+            // Create callback and store it to prevent garbage collection
+            // CRITICAL: The native DLL holds a raw function pointer - if the delegate is GC'd,
+            // calling the pointer causes a crash (SIGSEGV/Access Violation)
+            LudolioNative.AchievementCallback nativeCallback = null;
+            nativeCallback = (success) =>
             {
+                // Remove from active callbacks after invocation
+                lock (callbackLock)
+                {
+                    activeAchievementCallbacks.Remove(nativeCallback);
+                }
+
                 if (success)
                 {
                     Debug.Log($"[LudolioAchievements] Achievement unlocked: {achievementId}");
@@ -58,7 +73,16 @@ namespace Ludolio.SDK
                 }
 
                 callback?.Invoke(success);
-            });
+            };
+
+            // Store callback to prevent GC before native code calls it
+            lock (callbackLock)
+            {
+                activeAchievementCallbacks.Add(nativeCallback);
+            }
+
+            // Call native DLL function
+            LudolioNative.Ludolio_UnlockAchievement(achievementId, nativeCallback);
         }
 
         /// <summary>
@@ -110,9 +134,18 @@ namespace Ludolio.SDK
                 return;
             }
 
-            // Call native DLL function
-            LudolioNative.Ludolio_GetAchievements((jsonData) =>
+            // Create callback and store it to prevent garbage collection
+            // CRITICAL: The native DLL holds a raw function pointer - if the delegate is GC'd,
+            // calling the pointer causes a crash (SIGSEGV/Access Violation)
+            LudolioNative.AchievementListCallback nativeCallback = null;
+            nativeCallback = (jsonData) =>
             {
+                // Remove from active callbacks after invocation
+                lock (callbackLock)
+                {
+                    activeListCallbacks.Remove(nativeCallback);
+                }
+
                 if (string.IsNullOrEmpty(jsonData))
                 {
                     string error = LudolioSDK.GetLastError();
@@ -141,7 +174,16 @@ namespace Ludolio.SDK
                     Debug.LogError($"[LudolioAchievements] Failed to parse achievements: {ex.Message}");
                     callback?.Invoke(null);
                 }
-            });
+            };
+
+            // Store callback to prevent GC before native code calls it
+            lock (callbackLock)
+            {
+                activeListCallbacks.Add(nativeCallback);
+            }
+
+            // Call native DLL function
+            LudolioNative.Ludolio_GetAchievements(nativeCallback);
         }
 
         /// <summary>
