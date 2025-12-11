@@ -30,6 +30,23 @@ namespace Ludolio.SDK
             [MarshalAs(UnmanagedType.LPStr)] string jsonData
         );
 
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate void StatsCallback(
+            [MarshalAs(UnmanagedType.LPStr)] string jsonData
+        );
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate void SetStatCallback(
+            [MarshalAs(UnmanagedType.I1)] bool success,
+            [MarshalAs(UnmanagedType.LPStr)] string errorOrValue
+        );
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate void StoreStatsCallback(
+            [MarshalAs(UnmanagedType.I1)] bool success,
+            [MarshalAs(UnmanagedType.LPStr)] string jsonData
+        );
+
         // Core SDK functions
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
         [return: MarshalAs(UnmanagedType.I1)]
@@ -88,6 +105,41 @@ namespace Ludolio.SDK
         public static extern bool Ludolio_IsAchievementUnlocked(
             [MarshalAs(UnmanagedType.LPStr)] string achievementId
         );
+
+        // Stats (like Steamworks stats)
+        [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Ludolio_RequestStats(StatsCallback callback);
+
+        [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+        [return: MarshalAs(UnmanagedType.I1)]
+        public static extern bool Ludolio_GetStatInt(
+            [MarshalAs(UnmanagedType.LPStr)] string statId,
+            out int value
+        );
+
+        [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+        [return: MarshalAs(UnmanagedType.I1)]
+        public static extern bool Ludolio_GetStatFloat(
+            [MarshalAs(UnmanagedType.LPStr)] string statId,
+            out float value
+        );
+
+        [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+        [return: MarshalAs(UnmanagedType.I1)]
+        public static extern bool Ludolio_SetStatInt(
+            [MarshalAs(UnmanagedType.LPStr)] string statId,
+            int value
+        );
+
+        [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+        [return: MarshalAs(UnmanagedType.I1)]
+        public static extern bool Ludolio_SetStatFloat(
+            [MarshalAs(UnmanagedType.LPStr)] string statId,
+            float value
+        );
+
+        [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Ludolio_StoreStats(StoreStatsCallback callback);
 
         // Utility
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]

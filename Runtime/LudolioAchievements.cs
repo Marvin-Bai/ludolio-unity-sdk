@@ -11,7 +11,6 @@ namespace Ludolio.SDK
     public static class LudolioAchievements
     {
         public static event Action<string> OnAchievementUnlocked;
-        public static event Action<string, float> OnAchievementProgress;
 
         private static Dictionary<string, AchievementData> cachedAchievements = new Dictionary<string, AchievementData>();
 
@@ -83,35 +82,6 @@ namespace Ludolio.SDK
 
             // Call native DLL function
             LudolioNative.Ludolio_UnlockAchievement(achievementId, nativeCallback);
-        }
-
-        /// <summary>
-        /// Set progress for an achievement (for progressive achievements)
-        /// </summary>
-        /// <param name="achievementId">The unique identifier of the achievement</param>
-        /// <param name="progress">Progress value (0.0 to 1.0)</param>
-        /// <param name="callback">Optional callback with success status</param>
-        public static void SetAchievementProgress(string achievementId, float progress, Action<bool> callback = null)
-        {
-            if (!LudolioSDK.IsInitialized)
-            {
-                Debug.LogError("[LudolioAchievements] SDK not initialized.");
-                callback?.Invoke(false);
-                return;
-            }
-
-            progress = Mathf.Clamp01(progress);
-
-            // If progress is 100%, unlock the achievement
-            if (progress >= 1.0f)
-            {
-                UnlockAchievement(achievementId, callback);
-            }
-            else
-            {
-                OnAchievementProgress?.Invoke(achievementId, progress);
-                callback?.Invoke(true);
-            }
         }
 
         /// <summary>

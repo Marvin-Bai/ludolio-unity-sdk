@@ -20,6 +20,13 @@ void Start() {
 LudolioAchievements.UnlockAchievement("first_win");
 ```
 
+**Track stats (like Steamworks):**
+```csharp
+LudolioStats.RequestStats();  // Load stats first
+LudolioStats.SetStatInt("wins", 10);  // Set value
+LudolioStats.StoreStats();  // Save to server
+```
+
 **Get user info (optional):**
 ```csharp
 LudolioUser.GetUserInfo(user => Debug.Log($"Welcome {user.name}!"));
@@ -31,6 +38,7 @@ LudolioUser.GetUserInfo(user => Debug.Log($"Welcome {user.name}!"));
 
 - 🔐 **Automatic Authentication** - Seamless authentication with the Ludolio client
 - 🏆 **Achievements System** - Unlock and track player achievements
+- 📊 **Stats Tracking** - Track player statistics (like Steamworks GetStat/SetStat/StoreStats)
 - 👤 **User Information** - Access current user data
 - 🔄 **Auto-Sync** - Automatic synchronization with the Ludolio client
 - 🛡️ **DRM Protection** - Built-in validation and time-based access control
@@ -112,12 +120,45 @@ LudolioAchievements.UnlockAchievement("first_win", success =>
         Debug.Log("Achievement unlocked!");
     }
 });
-
-// Set progress for progressive achievements (0.0 to 1.0)
-LudolioAchievements.SetAchievementProgress("collect_100_coins", 0.5f);
 ```
 
-### 3. Get User Information (Optional)
+### 3. Track Stats (Optional)
+
+Stats work like Steamworks - you must request stats from the server first, then get/set values locally, and finally store them back.
+
+```csharp
+// 1. Request stats from server (call once after authentication)
+LudolioStats.RequestStats(success =>
+{
+    if (success)
+    {
+        Debug.Log("Stats loaded!");
+
+        // 2. Get current stat values
+        if (LudolioStats.GetStatInt("games_played", out int gamesPlayed))
+        {
+            Debug.Log($"Games played: {gamesPlayed}");
+        }
+
+        if (LudolioStats.GetStatFloat("total_distance", out float distance))
+        {
+            Debug.Log($"Total distance: {distance}");
+        }
+    }
+});
+
+// 3. Set stat values (cached locally until StoreStats is called)
+LudolioStats.SetStatInt("games_played", 5);
+LudolioStats.SetStatFloat("total_distance", 1234.5f);
+
+// 4. Store stats to server (call periodically or at key moments)
+LudolioStats.StoreStats(success =>
+{
+    if (success) Debug.Log("Stats saved!");
+});
+```
+
+### 4. Get User Information (Optional)
 
 Most games don't need this, but if you want to display user info:
 
@@ -174,7 +215,6 @@ Achievement management API.
 #### Methods
 
 - `static void UnlockAchievement(string achievementId, Action<bool> callback = null)`
-- `static void SetAchievementProgress(string achievementId, float progress, Action<bool> callback = null)`
 - `static void GetAchievements(Action<List<AchievementData>> callback)`
 - `static bool IsAchievementUnlocked(string achievementId)`
 - `static void ClearCache()`
@@ -182,7 +222,25 @@ Achievement management API.
 #### Events
 
 - `OnAchievementUnlocked(string achievementId)` - Fired when an achievement is unlocked
-- `OnAchievementProgress(string achievementId, float progress)` - Fired when achievement progress updates
+
+### LudolioStats
+
+Stats tracking API (like Steamworks stats).
+
+#### Methods
+
+- `static void RequestStats(Action<bool> callback = null)` - Load stats from server. Must call before Get/Set.
+- `static bool GetStatInt(string statId, out int value)` - Get integer stat value
+- `static bool GetStatFloat(string statId, out float value)` - Get float stat value
+- `static bool SetStatInt(string statId, int value)` - Set integer stat (cached locally)
+- `static bool SetStatFloat(string statId, float value)` - Set float stat (cached locally)
+- `static void StoreStats(Action<bool> callback = null)` - Upload modified stats to server
+
+#### Events
+
+- `OnStatsReceived` - Fired when stats are loaded from server
+- `OnStatsStored` - Fired when stats are successfully stored
+- `OnStatsStoreFailed(string error)` - Fired when stats storage fails
 
 ### LudolioUser
 
@@ -196,7 +254,7 @@ User information API.
 
 - `static void ClearCache()`
 
-## Complete Example with Achievements
+## Complete Example with Achievements and Stats
 
 See the included sample in `Samples~/BasicIntegration/LudolioExample.cs` for a complete working example.
 
@@ -241,6 +299,17 @@ public class MyGame : MonoBehaviour
                     Debug.Log($"You have {achievements.Count} achievements");
                 }
             });
+
+            // Optional: Load stats
+            LudolioStats.RequestStats(statsSuccess => {
+                if (statsSuccess)
+                {
+                    if (LudolioStats.GetStatInt("games_played", out int games))
+                    {
+                        Debug.Log($"Games played: {games}");
+                    }
+                }
+            });
         }
         else
         {
@@ -254,12 +323,20 @@ public class MyGame : MonoBehaviour
         // Show achievement notification UI
     }
 
-    // Example: Unlock achievement when player wins
+    // Example: Unlock achievement and update stats when player wins
     public void OnPlayerWin()
     {
         if (isReady)
         {
+            // Unlock achievement
             LudolioAchievements.UnlockAchievement("first_win");
+
+            // Update stats
+            if (LudolioStats.GetStatInt("wins", out int currentWins))
+            {
+                LudolioStats.SetStatInt("wins", currentWins + 1);
+                LudolioStats.StoreStats(); // Save to server
+            }
         }
     }
 

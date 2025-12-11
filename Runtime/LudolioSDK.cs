@@ -176,6 +176,7 @@ namespace Ludolio.SDK
             if (IsInitialized)
             {
                 Debug.Log("[LudolioSDK] Shutting down");
+                LudolioStats.Reset();
                 LudolioNative.Ludolio_Shutdown();
             }
         }

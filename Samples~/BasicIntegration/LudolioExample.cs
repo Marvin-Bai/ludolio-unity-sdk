@@ -122,20 +122,6 @@ public class LudolioExample : MonoBehaviour
         });
     }
 
-    // Example: Set progress for a progressive achievement
-    public void SetAchievementProgress(string achievementId, float progress)
-    {
-        if (!isInitialized) return;
-
-        LudolioAchievements.SetAchievementProgress(achievementId, progress, success =>
-        {
-            if (success)
-            {
-                Debug.Log($"Achievement progress set to {progress * 100}%");
-            }
-        });
-    }
-
     // Example GUI for testing
     void OnGUI()
     {
@@ -153,12 +139,7 @@ public class LudolioExample : MonoBehaviour
             UnlockFirstWinAchievement();
         }
 
-        if (GUI.Button(new Rect(10, 120, 200, 30), "Set Progress 50%"))
-        {
-            SetAchievementProgress(testAchievementId, 0.5f);
-        }
-
-        if (GUI.Button(new Rect(10, 160, 200, 30), "Refresh User Info"))
+        if (GUI.Button(new Rect(10, 120, 200, 30), "Refresh User Info"))
         {
             LudolioUser.ClearCache();
             LudolioUser.GetUserInfo(userInfo =>

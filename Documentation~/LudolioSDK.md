@@ -231,18 +231,6 @@ LudolioAchievements.UnlockAchievement("first_win", success =>
 });
 ```
 
-##### `SetAchievementProgress(string achievementId, float progress, Action<bool> callback = null)`
-
-Set progress for a progressive achievement (0.0 to 1.0).
-
-```csharp
-// Set to 50%
-LudolioAchievements.SetAchievementProgress("collect_100_coins", 0.5f);
-
-// Set to 100% (will unlock the achievement)
-LudolioAchievements.SetAchievementProgress("collect_100_coins", 1.0f);
-```
-
 ##### `GetAchievements(Action<List<AchievementData>> callback)`
 
 Get all achievements for the current game.
@@ -287,17 +275,6 @@ LudolioAchievements.OnAchievementUnlocked += (achievementId) =>
 {
     Debug.Log($"Achievement unlocked: {achievementId}");
     // Show achievement notification UI
-};
-```
-
-##### `OnAchievementProgress(string achievementId, float progress)`
-
-Fired when achievement progress updates.
-
-```csharp
-LudolioAchievements.OnAchievementProgress += (id, progress) =>
-{
-    Debug.Log($"{id}: {progress * 100}%");
 };
 ```
 
