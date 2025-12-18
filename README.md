@@ -2,189 +2,242 @@
 
 Official Unity SDK for Ludolio integration. This SDK provides a Steamworks-like API for Unity games to integrate with the Ludolio platform.
 
-## 🚀 Quick Reference
+## Quick Reference
 
-**Minimal setup (most games only need this):**
+Minimal setup for DRM:
+
+It is recommended to setup Ludolio SDK as early as possible in the game lifecycle. The SDK will automatically handle game shutdown if launched outside of the Ludolio Desktop Client.
 
 ```csharp
 void Start() {
     LudolioSDK.OnAuthenticationComplete += (success) => {
         if (success) Debug.Log("Ready to play!");
     };
-    LudolioSDK.Init(YOUR_APP_ID);
+    LudolioSDK.Init(YOUR_APP_ID); //You can find your App ID in the Ludolio Developer Dashboard.
 }
 ```
 
-**Unlock achievement:**
+Unlock achievement:
+
 ```csharp
-LudolioAchievements.UnlockAchievement("first_win");
+LudolioAchievements.UnlockAchievement("ACH_FIRST_WIN");
 ```
 
-**Track stats (like Steamworks):**
+Track stats (Steamworks-style):
+
 ```csharp
-LudolioStats.RequestStats();  // Load stats first
-LudolioStats.SetStatInt("wins", 10);  // Set value
-LudolioStats.StoreStats();  // Save to server
+LudolioStats.RequestStats();       // Load stats first
+LudolioStats.SetStatInt("kills", 10);  // Set value
+LudolioStats.StoreStats();         // Save to server
 ```
 
-**Get user info (optional):**
-```csharp
-LudolioUser.GetUserInfo(user => Debug.Log($"Welcome {user.name}!"));
-```
-
-> 💡 **Remember**: Always wait for `OnAuthenticationComplete` before accessing user data!
+**Important**: Always wait for `OnAuthenticationComplete` before accessing user data or SDK features.
 
 ## Features
 
-- 🔐 **Automatic Authentication** - Seamless authentication with the Ludolio client
-- 🏆 **Achievements System** - Unlock and track player achievements
-- 📊 **Stats Tracking** - Track player statistics (like Steamworks GetStat/SetStat/StoreStats)
-- 👤 **User Information** - Access current user data
-- 🔄 **Auto-Sync** - Automatic synchronization with the Ludolio client
-- 🛡️ **DRM Protection** - Built-in validation and time-based access control
-- 🎮 **Process Lifecycle** - Automatic game shutdown when client closes (like Steam)
+- **Automatic Authentication** - Seamless authentication with the Ludolio Desktop Client
+- **Achievements System** - Unlock and track player achievements
+- **Stats Tracking** - Track player statistics (Steamworks-style GetStat/SetStat/StoreStats)
+- **User Information** - Access current user data
+- **Process Lifecycle** - Automatic game shutdown when Desktop Client closes
+
+## Requirements
+
+- Unity 2019.4 or later
+- Windows (Windows-only)
+
 
 ## Installation
 
-### Option 1: Unity Package Manager (Recommended)
+### Unity Package Manager (Recommended)
 
 1. Open Unity Package Manager (`Window > Package Manager`)
 2. Click the `+` button in the top-left corner
 3. Select `Add package from git URL`
-4. Enter: `https://github.com/Marvin-Bai/ludolio-unity-sdk.git`
-
-### Option 2: Manual Installation
-
-1. Download the latest release from [GitHub Releases](https://github.com/Marvin-Bai/ludolio-unity-sdk/releases)
-2. Extract to your Unity project's `Packages` folder
+4. Enter the SDK repository URL `https://github.com/Marvin-Bai/ludolio-unity-sdk.git`
 
 ## Quick Start
 
-### 1. Basic Setup (Minimal - Most Common)
+### 1. Basic Setup
 
-For most games, you just need to initialize the SDK and wait for authentication. Add this script to a GameObject in your first scene:
+Add this script to a GameObject in your first scene:
 
 ```csharp
 using UnityEngine;
 using Ludolio.SDK;
 
-public class GameManager : MonoBehaviour
+public class GameInitializer : MonoBehaviour
 {
-    [SerializeField] private int appId = 12345; // Your App ID from Ludolio
+    [SerializeField] private int appId = 1000; // Your App ID from Ludolio
 
     void Start()
     {
-        // Subscribe to authentication event
-        LudolioSDK.OnAuthenticationComplete += OnAuthComplete;
+        // Subscribe to authentication event BEFORE initializing
+        LudolioSDK.OnAuthenticationComplete += OnAuthenticationComplete;
 
-        // Initialize SDK
-        LudolioSDK.Init(appId);
+        // Initialize SDK with your App ID
+        if (LudolioSDK.Init(appId))
+        {
+            Debug.Log("Ludolio SDK initialization started...");
+        }
+        else
+        {
+            Debug.LogError("Failed to initialize Ludolio SDK!");
+        }
     }
 
-    void OnAuthComplete(bool success)
+    private void OnAuthenticationComplete(bool success)
     {
         if (success)
         {
-            Debug.Log("Player authenticated! Game ready.");
-            // Enable your game UI/gameplay here
+            string userId = LudolioSDK.GetUserId();
+            Debug.Log("Authenticated! User ID: " + userId);
+
+            // SDK is now ready - enable game features
         }
         else
         {
             Debug.LogError("Authentication failed!");
-            // Handle authentication failure
         }
     }
 
     void OnDestroy()
     {
-        // Clean up
-        LudolioSDK.OnAuthenticationComplete -= OnAuthComplete;
+        // Clean up event subscription
+        LudolioSDK.OnAuthenticationComplete -= OnAuthenticationComplete;
         LudolioSDK.Shutdown();
     }
 }
 ```
 
-**That's it!** For most games, this is all you need. The SDK handles authentication automatically.
+### 2. Using Achievements
 
-### 2. Unlock Achievements (Optional)
+Unlock achievements when players accomplish goals:
 
 ```csharp
-// Simple achievement unlock
-LudolioAchievements.UnlockAchievement("first_win");
+using UnityEngine;
+using Ludolio.SDK;
 
-// With callback to know when it's done
-LudolioAchievements.UnlockAchievement("first_win", success =>
+public class EnemyKillTracker : MonoBehaviour
+{
+    private int killCount = 0;
+
+    public void OnEnemyKilled()
+    {
+        killCount++;
+
+        // Unlock achievement when player reaches 10 kills
+        if (killCount == 10)
+        {
+            LudolioAchievements.UnlockAchievement("ACH_10_KILLS");
+        }
+    }
+}
+```
+
+With callback for confirmation:
+
+```csharp
+LudolioAchievements.UnlockAchievement("ACH_FIRST_WIN", success =>
 {
     if (success)
     {
         Debug.Log("Achievement unlocked!");
     }
-});
-```
-
-### 3. Track Stats (Optional)
-
-Stats work like Steamworks - you must request stats from the server first, then get/set values locally, and finally store them back.
-
-```csharp
-// 1. Request stats from server (call once after authentication)
-LudolioStats.RequestStats(success =>
-{
-    if (success)
+    else
     {
-        Debug.Log("Stats loaded!");
-
-        // 2. Get current stat values
-        if (LudolioStats.GetStatInt("games_played", out int gamesPlayed))
-        {
-            Debug.Log($"Games played: {gamesPlayed}");
-        }
-
-        if (LudolioStats.GetStatFloat("total_distance", out float distance))
-        {
-            Debug.Log($"Total distance: {distance}");
-        }
+        Debug.LogError("Failed to unlock achievement");
     }
 });
-
-// 3. Set stat values (cached locally until StoreStats is called)
-LudolioStats.SetStatInt("games_played", 5);
-LudolioStats.SetStatFloat("total_distance", 1234.5f);
-
-// 4. Store stats to server (call periodically or at key moments)
-LudolioStats.StoreStats(success =>
-{
-    if (success) Debug.Log("Stats saved!");
-});
 ```
 
-### 4. Get User Information (Optional)
+### 3. Using Stats
 
-Most games don't need this, but if you want to display user info:
+Stats work like Steamworks: request from server, get/set locally, then store back.
+
+**Step 1: Load stats after authentication**
 
 ```csharp
-// Get full user info (only call AFTER authentication completes)
-void OnAuthComplete(bool success)
+private void OnAuthenticationComplete(bool success)
 {
     if (success)
     {
-        LudolioUser.GetUserInfo(userInfo =>
+        // Load stats from server
+        LudolioStats.RequestStats(statsSuccess =>
         {
-            if (userInfo != null)
+            if (statsSuccess)
             {
-                Debug.Log($"Welcome, {userInfo.name}!");
-                // Display user name in UI
+                Debug.Log("Stats loaded successfully!");
+
+                // Read current values
+                if (LudolioStats.GetStatInt("kills", out int kills))
+                {
+                    Debug.Log("Total kills: " + kills);
+                }
+            }
+            else
+            {
+                Debug.LogError("Failed to load stats!");
             }
         });
     }
 }
-
-// Quick accessors (only available after authentication)
-string userId = LudolioSDK.GetUserId();
-string userName = LudolioUser.GetUserName();
 ```
 
-> ⚠️ **Important**: User data is only available **after** the `OnAuthenticationComplete` event fires with `success = true`. Don't call these methods in `Start()` immediately after `Init()`.
+**Step 2: Update stats during gameplay**
+
+```csharp
+public void OnEnemyKilled()
+{
+    // Get current value, increment, and set new value
+    if (LudolioStats.GetStatInt("kills", out int currentKills))
+    {
+        LudolioStats.SetStatInt("kills", currentKills + 1);
+        LudolioStats.StoreStats(); // Save to server
+    }
+}
+```
+
+**Step 3: Store stats at key moments**
+
+```csharp
+// Call StoreStats when:
+// - Player completes a level
+// - Player pauses the game
+// - At regular intervals during gameplay
+
+LudolioStats.StoreStats(success =>
+{
+    if (success)
+    {
+        Debug.Log("Stats saved to server");
+    }
+});
+```
+
+### 4. Getting User Information
+
+```csharp
+private void OnAuthenticationComplete(bool success)
+{
+    if (success)
+    {
+        // Quick accessor for user ID
+        string userId = LudolioSDK.GetUserId();
+
+        // Or get full user info
+        LudolioUser.GetUserInfo(userInfo =>
+        {
+            if (userInfo != null)
+            {
+                Debug.Log("Welcome, " + userInfo.name);
+            }
+        });
+    }
+}
+```
+
+**Important**: User data is only available after the `OnAuthenticationComplete` event fires with `success = true`. Do not call these methods immediately after `Init()`.
 
 ## API Reference
 
@@ -192,21 +245,30 @@ string userName = LudolioUser.GetUserName();
 
 Main SDK class for initialization and core functionality.
 
+#### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `IsInitialized` | `bool` | Returns `true` if SDK is initialized |
+| `IsAuthenticated` | `bool` | Returns `true` if user is authenticated |
+
 #### Methods
 
-- `static bool Init(int appId)` - Initialize the SDK with your App ID. Returns `true` if initialization started successfully.
-- `static void Shutdown()` - Shutdown the SDK (call in `OnDestroy()`)
-- `static bool IsInitialized` - Check if SDK is initialized
-- `static bool IsAuthenticated` - Check if user is authenticated (only `true` after `OnAuthenticationComplete` fires)
-- `static string GetUserId()` - Get current user ID (only available after authentication completes, returns `null` otherwise)
-- `static string GetGameId()` - Get current game ID
-- `static string GetLastError()` - Get the last error message from the SDK
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `Init(int appId)` | `bool` | Initialize the SDK with your App ID |
+| `Shutdown()` | `void` | Shutdown the SDK (call in `OnDestroy()`) |
+| `GetUserId()` | `string` | Get current user ID (returns `null` if not authenticated) |
+| `GetGameId()` | `string` | Get current game ID |
+| `GetLastError()` | `string` | Get the last error message from the SDK |
 
 #### Events
 
-- `OnInitialized` - Fired when SDK initialization completes
-- `OnAuthenticationComplete(bool success)` - **Most important event!** Fired when authentication completes. Wait for this before accessing user data.
-- `OnClientDisconnected` - Fired when Ludolio Desktop Client disconnects (game will close automatically)
+| Event | Signature | Description |
+|-------|-----------|-------------|
+| `OnInitialized` | `Action` | Fired when SDK initialization completes |
+| `OnAuthenticationComplete` | `Action<bool>` | Fired when authentication completes |
+| `OnClientDisconnected` | `Action` | Fired when Desktop Client disconnects |
 
 ### LudolioAchievements
 
@@ -214,33 +276,55 @@ Achievement management API.
 
 #### Methods
 
-- `static void UnlockAchievement(string achievementId, Action<bool> callback = null)`
-- `static void GetAchievements(Action<List<AchievementData>> callback)`
-- `static bool IsAchievementUnlocked(string achievementId)`
-- `static void ClearCache()`
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `UnlockAchievement(string achievementId, Action<bool> callback = null)` | `void` | Unlock an achievement |
+| `GetAchievements(Action<List<AchievementData>> callback)` | `void` | Get all achievements for the game |
+| `IsAchievementUnlocked(string achievementId)` | `bool` | Check if achievement is unlocked (from cache) |
+| `ClearCache()` | `void` | Clear the local achievement cache |
 
 #### Events
 
-- `OnAchievementUnlocked(string achievementId)` - Fired when an achievement is unlocked
+| Event | Signature | Description |
+|-------|-----------|-------------|
+| `OnAchievementUnlocked` | `Action<string>` | Fired when an achievement is unlocked |
+
+#### Data Types
+
+```csharp
+public class AchievementData
+{
+    public string id;
+    public string name;
+    public string description;
+    public string icon;
+    public bool unlocked;
+    public string unlockedAt;
+}
+```
 
 ### LudolioStats
 
-Stats tracking API (like Steamworks stats).
+Stats tracking API (Steamworks-style).
 
 #### Methods
 
-- `static void RequestStats(Action<bool> callback = null)` - Load stats from server. Must call before Get/Set.
-- `static bool GetStatInt(string statId, out int value)` - Get integer stat value
-- `static bool GetStatFloat(string statId, out float value)` - Get float stat value
-- `static bool SetStatInt(string statId, int value)` - Set integer stat (cached locally)
-- `static bool SetStatFloat(string statId, float value)` - Set float stat (cached locally)
-- `static void StoreStats(Action<bool> callback = null)` - Upload modified stats to server
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `RequestStats(Action<bool> callback = null)` | `void` | Load stats from server (call before Get/Set) |
+| `GetStatInt(string statId, out int value)` | `bool` | Get integer stat value |
+| `GetStatFloat(string statId, out float value)` | `bool` | Get float stat value |
+| `SetStatInt(string statId, int value)` | `bool` | Set integer stat (cached locally) |
+| `SetStatFloat(string statId, float value)` | `bool` | Set float stat (cached locally) |
+| `StoreStats(Action<bool> callback = null)` | `void` | Upload modified stats to server |
 
 #### Events
 
-- `OnStatsReceived` - Fired when stats are loaded from server
-- `OnStatsStored` - Fired when stats are successfully stored
-- `OnStatsStoreFailed(string error)` - Fired when stats storage fails
+| Event | Signature | Description |
+|-------|-----------|-------------|
+| `OnStatsReceived` | `Action` | Fired when stats are loaded from server |
+| `OnStatsStored` | `Action` | Fired when stats are successfully stored |
+| `OnStatsStoreFailed` | `Action<string>` | Fired when stats storage fails |
 
 ### LudolioUser
 
@@ -248,65 +332,67 @@ User information API.
 
 #### Methods
 
-- `static void GetUserInfo(Action<UserInfo> callback)`
-- `static string GetUserId()`
-- `static string GetUserName()`
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `GetUserInfo(Action<UserInfo> callback)` | `void` | Get full user information |
+| `GetUserId()` | `string` | Get current user ID |
+| `GetUserName()` | `string` | Get current user name |
+| `ClearCache()` | `void` | Clear cached user info |
 
-- `static void ClearCache()`
+#### Data Types
 
-## Complete Example with Achievements and Stats
+```csharp
+public class UserInfo
+{
+    public string id;
+    public string name;
+    public string email;
+}
+```
 
-See the included sample in `Samples~/BasicIntegration/LudolioExample.cs` for a complete working example.
+## Complete Example
+
+The following example demonstrates initializing the SDK, handling authentication, loading stats, and tracking gameplay events:
 
 ```csharp
 using UnityEngine;
 using Ludolio.SDK;
 
-public class MyGame : MonoBehaviour
+public class GameManager : MonoBehaviour
 {
-    [SerializeField] private int appId = 12345;
+    [SerializeField] private int appId = 1000;
     private bool isReady = false;
 
     void Start()
     {
-        // Subscribe to events
-        LudolioSDK.OnAuthenticationComplete += OnAuth;
+        // Subscribe to events BEFORE initializing
+        LudolioSDK.OnAuthenticationComplete += OnAuthenticationComplete;
         LudolioAchievements.OnAchievementUnlocked += OnAchievementUnlocked;
 
         // Initialize SDK
-        LudolioSDK.Init(appId);
+        if (!LudolioSDK.Init(appId))
+        {
+            Debug.LogError("Failed to initialize Ludolio SDK!");
+        }
     }
 
-    void OnAuth(bool success)
+    private void OnAuthenticationComplete(bool success)
     {
         if (success)
         {
-            Debug.Log("Authentication successful!");
-            isReady = true;
+            Debug.Log("Authentication successful! User: " + LudolioSDK.GetUserId());
 
-            // Optional: Get user info to display welcome message
-            LudolioUser.GetUserInfo(user => {
-                if (user != null)
-                {
-                    Debug.Log($"Welcome {user.name}!");
-                }
-            });
-
-            // Optional: Load achievements to show progress
-            LudolioAchievements.GetAchievements(achievements => {
-                if (achievements != null)
-                {
-                    Debug.Log($"You have {achievements.Count} achievements");
-                }
-            });
-
-            // Optional: Load stats
-            LudolioStats.RequestStats(statsSuccess => {
+            // Load stats from server
+            LudolioStats.RequestStats(statsSuccess =>
+            {
                 if (statsSuccess)
                 {
-                    if (LudolioStats.GetStatInt("games_played", out int games))
+                    isReady = true;
+                    Debug.Log("Stats loaded - game ready!");
+
+                    if (LudolioStats.GetStatInt("kills", out int kills))
                     {
-                        Debug.Log($"Games played: {games}");
+                        Debug.Log("Total kills: " + kills);
                     }
                 }
             });
@@ -317,25 +403,27 @@ public class MyGame : MonoBehaviour
         }
     }
 
-    void OnAchievementUnlocked(string achievementId)
+    private void OnAchievementUnlocked(string achievementId)
     {
-        Debug.Log($"Achievement unlocked: {achievementId}");
-        // Show achievement notification UI
+        Debug.Log("Achievement unlocked: " + achievementId);
     }
 
-    // Example: Unlock achievement and update stats when player wins
-    public void OnPlayerWin()
+    // Call this when an enemy is killed
+    public void OnEnemyKilled()
     {
-        if (isReady)
-        {
-            // Unlock achievement
-            LudolioAchievements.UnlockAchievement("first_win");
+        if (!isReady) return;
 
-            // Update stats
-            if (LudolioStats.GetStatInt("wins", out int currentWins))
+        // Update kill stat
+        if (LudolioStats.GetStatInt("kills", out int currentKills))
+        {
+            int newKills = currentKills + 1;
+            LudolioStats.SetStatInt("kills", newKills);
+            LudolioStats.StoreStats();
+
+            // Unlock achievement at 10 kills
+            if (newKills == 10)
             {
-                LudolioStats.SetStatInt("wins", currentWins + 1);
-                LudolioStats.StoreStats(); // Save to server
+                LudolioAchievements.UnlockAchievement("ACH_10_KILLS");
             }
         }
     }
@@ -343,7 +431,7 @@ public class MyGame : MonoBehaviour
     void OnDestroy()
     {
         // Clean up event subscriptions
-        LudolioSDK.OnAuthenticationComplete -= OnAuth;
+        LudolioSDK.OnAuthenticationComplete -= OnAuthenticationComplete;
         LudolioAchievements.OnAchievementUnlocked -= OnAchievementUnlocked;
 
         // Shutdown SDK
@@ -352,113 +440,91 @@ public class MyGame : MonoBehaviour
 }
 ```
 
-## How It Works
 
-1. **Game Launch**: The Ludolio Desktop Client launches your game with a secure session token
-2. **SDK Init**: Your game calls `LudolioSDK.Init()` which reads the session token
-3. **Authentication**: SDK validates the token with the Desktop Client via secure named pipe (happens in ~100ms)
-4. **Callback**: `OnAuthenticationComplete` event fires when authentication succeeds
-5. **Gameplay**: Your game can now use all SDK features (achievements, user info, etc.)
-6. **Lifecycle**: SDK monitors the client connection and closes the game if client disconnects
+## Common Pitfalls
 
-### Authentication Flow
-
-```
-Your Game Start()
-      ↓
-Subscribe to OnAuthenticationComplete
-      ↓
-Call LudolioSDK.Init(appId)
-      ↓
-[SDK connects to Desktop Client]
-      ↓
-[Authentication happens (~100ms)]
-      ↓
-OnAuthenticationComplete(true) ← Your callback fires
-      ↓
-Game is ready! Enable gameplay
-```
-
-> 💡 **Tip**: Authentication is very fast (typically <100ms), so you can show a simple "Connecting..." message or just let it happen in the background.
-
-
-
-## Common Pitfalls ⚠️
-
-### ❌ DON'T: Call GetUserId() immediately after Init()
+### Incorrect: Calling GetUserId() immediately after Init()
 
 ```csharp
 void Start()
 {
-    LudolioSDK.Init(12345);
-    string userId = LudolioSDK.GetUserId(); // ❌ Returns null! Authentication not done yet
+    LudolioSDK.Init(1000);
+    string userId = LudolioSDK.GetUserId(); // Returns null - authentication not complete
 }
 ```
 
-### ✅ DO: Wait for OnAuthenticationComplete
+### Correct: Wait for OnAuthenticationComplete
 
 ```csharp
 void Start()
 {
     LudolioSDK.OnAuthenticationComplete += OnAuthComplete;
-    LudolioSDK.Init(12345);
+    LudolioSDK.Init(1000);
 }
 
 void OnAuthComplete(bool success)
 {
     if (success)
     {
-        string userId = LudolioSDK.GetUserId(); // ✅ Now it works!
+        string userId = LudolioSDK.GetUserId(); // Now returns valid user ID
     }
 }
 ```
 
-### ❌ DON'T: Forget to unsubscribe from events
+### Incorrect: Forgetting to unsubscribe from events
 
 ```csharp
 void OnDestroy()
 {
-    LudolioSDK.Shutdown(); // ❌ Memory leak! Event still subscribed
+    LudolioSDK.Shutdown(); // Memory leak - event still subscribed
 }
 ```
 
-### ✅ DO: Clean up event subscriptions
+### Correct: Clean up event subscriptions
 
 ```csharp
 void OnDestroy()
 {
-    LudolioSDK.OnAuthenticationComplete -= OnAuthComplete; // ✅ Clean up
+    LudolioSDK.OnAuthenticationComplete -= OnAuthComplete;
     LudolioSDK.Shutdown();
 }
 ```
 
-## Requirements
+### Incorrect: Using stats before RequestStats completes
 
-- Unity 2019.4 or later
-- Windows (currently Windows-only, macOS/Linux support coming soon)
-- Ludolio Desktop Client installed
-- Game must be launched from Ludolio Desktop Client
+```csharp
+void OnAuthComplete(bool success)
+{
+    if (success)
+    {
+        LudolioStats.RequestStats();
+        LudolioStats.GetStatInt("kills", out int kills); // Fails - stats not loaded yet
+    }
+}
+```
+
+### Correct: Wait for RequestStats callback
+
+```csharp
+void OnAuthComplete(bool success)
+{
+    if (success)
+    {
+        LudolioStats.RequestStats(statsSuccess =>
+        {
+            if (statsSuccess)
+            {
+                LudolioStats.GetStatInt("kills", out int kills); // Works correctly
+            }
+        });
+    }
+}
+```
 
 ## Testing
 
-For development/testing without the client:
+For development and testing:
 
 1. The SDK will log errors if authentication data is missing
-2. In the Unity Editor, the SDK will fail gracefully without crashing
-3. For production builds, the game will quit if not launched from the Ludolio client
-4. See `UNITY_SDK_INTEGRATION.md` in the desktop-client for testing details
-
-## Support
-
-- **Documentation**: [GitHub Wiki](https://github.com/Marvin-Bai/ludolio-unity-sdk/wiki)
-- **Issues**: [GitHub Issues](https://github.com/Marvin-Bai/ludolio-unity-sdk/issues)
-- **Examples**: Check the `Samples~` folder
-
-## License
-
-See LICENSE file for details.
-
-## Changelog
-
-See CHANGELOG.md for version history.
-
+2. For production builds, the game will quit if not launched from the Ludolio Desktop Client
+3. Please contact us if you face any issues during integration
