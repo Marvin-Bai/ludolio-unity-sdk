@@ -45,7 +45,7 @@ Add to `Packages/manifest.json`:
 ```json
 {
   "dependencies": {
-    "com.ludolio.sdk": "https://github.com/Marvin-Bai/ludolio-unity-sdk.git#v0.1.0"
+    "com.ludolio.sdk": "https://github.com/Marvin-Bai/ludolio-unity-sdk.git#v0.3.1"
   }
 }
 ```
@@ -55,7 +55,7 @@ Add to `Packages/manifest.json`:
 Use a specific version tag:
 
 ```
-https://github.com/Marvin-Bai/ludolio-unity-sdk.git#v0.1.0
+https://github.com/Marvin-Bai/ludolio-unity-sdk.git#v0.3.1
 ```
 
 ## Quick Start
@@ -70,7 +70,7 @@ using Ludolio.SDK;
 
 public class GameSDKManager : MonoBehaviour
 {
-    [SerializeField] private string gameId = "your-game-id";
+    [SerializeField] private int appId = 1000; // Your App ID from Ludolio
 
     void Start()
     {
@@ -78,7 +78,7 @@ public class GameSDKManager : MonoBehaviour
         LudolioSDK.OnAuthenticationComplete += OnAuthComplete;
 
         // Initialize SDK
-        if (!LudolioSDK.Init(gameId))
+        if (!LudolioSDK.Init(appId))
         {
             Debug.LogError("Failed to initialize SDK!");
         }
@@ -123,16 +123,16 @@ Main SDK class for initialization and core functionality.
 
 #### Static Methods
 
-##### `Init(string gameId)`
+##### `Init(int appId)`
 
-Initialize the SDK with your game ID.
+Initialize the SDK with your App ID.
 
 ```csharp
-bool success = LudolioSDK.Init("my-game-id");
+bool success = LudolioSDK.Init(1000);
 ```
 
 **Parameters:**
-- `gameId` - Your game's unique identifier from Ludolio
+- `appId` - Your game's App ID from the Ludolio Developer Dashboard
 
 **Returns:** `true` if initialization started successfully
 
@@ -315,20 +315,127 @@ Get the current user's name (from cache).
 string userName = LudolioUser.GetUserName();
 ```
 
-##### `GetUserEmail()`
-
-Get the current user's email (from cache).
-
-```csharp
-string email = LudolioUser.GetUserEmail();
-```
-
 ##### `ClearCache()`
 
 Clear the user info cache.
 
 ```csharp
 LudolioUser.ClearCache();
+```
+
+### LudolioStats
+
+Stats tracking API. Works like Steamworks stats: request from server, get/set locally, then store back.
+
+#### Static Methods
+
+##### `RequestStats(Action<bool> callback = null)`
+
+Load stats from the server. Must be called before `GetStat`/`SetStat`.
+
+```csharp
+LudolioStats.RequestStats(success =>
+{
+    if (success)
+    {
+        Debug.Log("Stats loaded!");
+    }
+});
+```
+
+##### `GetStatInt(string statId, out int value)`
+
+Get an integer stat value. `RequestStats` must complete first.
+
+```csharp
+if (LudolioStats.GetStatInt("kills", out int kills))
+{
+    Debug.Log($"Total kills: {kills}");
+}
+```
+
+**Returns:** `true` if the stat was found
+
+##### `GetStatFloat(string statId, out float value)`
+
+Get a float stat value. `RequestStats` must complete first.
+
+```csharp
+if (LudolioStats.GetStatFloat("playtime", out float hours))
+{
+    Debug.Log($"Play time: {hours} hours");
+}
+```
+
+**Returns:** `true` if the stat was found
+
+##### `SetStatInt(string statId, int value)`
+
+Set an integer stat value. Changes are cached locally until `StoreStats` is called.
+
+```csharp
+LudolioStats.SetStatInt("kills", 10);
+```
+
+**Returns:** `true` if successful
+
+##### `SetStatFloat(string statId, float value)`
+
+Set a float stat value. Changes are cached locally until `StoreStats` is called.
+
+```csharp
+LudolioStats.SetStatFloat("playtime", 2.5f);
+```
+
+**Returns:** `true` if successful
+
+##### `StoreStats(Action<bool> callback = null)`
+
+Upload all modified stats to the server.
+
+```csharp
+LudolioStats.StoreStats(success =>
+{
+    if (success)
+    {
+        Debug.Log("Stats saved!");
+    }
+});
+```
+
+#### Static Events
+
+##### `OnStatsReceived`
+
+Fired when stats are successfully loaded from the server.
+
+```csharp
+LudolioStats.OnStatsReceived += () =>
+{
+    Debug.Log("Stats received from server");
+};
+```
+
+##### `OnStatsStored`
+
+Fired when stats are successfully stored to the server.
+
+```csharp
+LudolioStats.OnStatsStored += () =>
+{
+    Debug.Log("Stats saved to server");
+};
+```
+
+##### `OnStatsStoreFailed(string error)`
+
+Fired when stats storage fails.
+
+```csharp
+LudolioStats.OnStatsStoreFailed += (error) =>
+{
+    Debug.LogError($"Failed to store stats: {error}");
+};
 ```
 
 ## Examples
