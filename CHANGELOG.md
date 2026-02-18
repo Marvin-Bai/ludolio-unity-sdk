@@ -2,6 +2,11 @@
 
 All notable changes to the Ludolio Unity SDK will be documented in this file.
 
+## [0.4.0] - 2026-02-18
+
+### Added
+- **HMAC-signed achievement unlock tokens** for enhanced security
+
 ## [0.3.1] - 2026-02-17
 
 ### Fixed
