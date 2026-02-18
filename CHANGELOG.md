@@ -2,6 +2,11 @@
 
 All notable changes to the Ludolio Unity SDK will be documented in this file.
 
+## [0.4.1] - 2026-02-18
+
+### Fixed
+- Fixed windows build error
+
 ## [0.4.0] - 2026-02-18
 
 ### Added
