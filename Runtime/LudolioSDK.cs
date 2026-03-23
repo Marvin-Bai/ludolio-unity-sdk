@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using System.Runtime.InteropServices;
+using AOT;
 
 namespace Ludolio.SDK
 {
@@ -17,9 +18,6 @@ namespace Ludolio.SDK
         // Authentication data from command line
         private string sessionToken;
         private string gameId;
-
-        // Keep callback delegates alive to prevent garbage collection
-        private LudolioNative.AuthCallback authCallback;
 
         // Queue for marshaling callbacks from background threads to main thread
         private readonly Queue<Action> mainThreadQueue = new Queue<Action>();
@@ -176,6 +174,7 @@ namespace Ludolio.SDK
             if (IsInitialized)
             {
                 Debug.Log("[LudolioSDK] Shutting down");
+                LudolioAchievements.Reset();
                 LudolioStats.Reset();
                 LudolioNative.Ludolio_Shutdown();
             }
@@ -209,37 +208,44 @@ namespace Ludolio.SDK
             }
         }
 
-        private void Authenticate()
+        /// <summary>
+        /// IL2CPP-safe static callback for authentication.
+        /// Native code calls this directly via function pointer.
+        /// </summary>
+        [MonoPInvokeCallback(typeof(LudolioNative.AuthCallback))]
+        private static void OnAuthCallbackStatic(bool success)
         {
-            // Store callback as member variable to prevent garbage collection
-            // Note: This callback will be invoked from a background thread by the native SDK
-            authCallback = (success) =>
+            // Marshal to main thread since Unity APIs are not thread-safe
+            var inst = instance;
+            if (inst == null) return;
+
+            lock (inst.queueLock)
             {
-                // Marshal to main thread since Unity APIs are not thread-safe
-                lock (queueLock)
+                inst.mainThreadQueue.Enqueue(() =>
                 {
-                    mainThreadQueue.Enqueue(() =>
+                    if (success)
                     {
-                        if (success)
-                        {
-                            Debug.Log("[LudolioSDK] Authentication successful!");
-                            OnAuthenticationComplete?.Invoke(true);
-                        }
-                        else
-                        {
-                            string error = GetLastError();
-                            Debug.LogError($"[LudolioSDK] Authentication failed: {error}");
-                            OnAuthenticationComplete?.Invoke(false);
+                        Debug.Log("[LudolioSDK] Authentication successful!");
+                        OnAuthenticationComplete?.Invoke(true);
+                    }
+                    else
+                    {
+                        string error = GetLastError();
+                        Debug.LogError($"[LudolioSDK] Authentication failed: {error}");
+                        OnAuthenticationComplete?.Invoke(false);
 
 #if !UNITY_EDITOR
-                            Application.Quit();
+                        Application.Quit();
 #endif
-                        }
-                    });
-                }
-            };
+                    }
+                });
+            }
+        }
 
-            LudolioNative.Ludolio_Authenticate(authCallback);
+        private void Authenticate()
+        {
+            // Use IL2CPP-safe static delegate
+            LudolioNative.Ludolio_Authenticate(OnAuthCallbackStatic);
         }
 
         /// <summary>

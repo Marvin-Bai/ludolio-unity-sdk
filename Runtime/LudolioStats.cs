@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using AOT;
 
 namespace Ludolio.SDK
 {
@@ -27,10 +28,77 @@ namespace Ludolio.SDK
 
         private static bool statsLoaded = false;
 
-        // Store active callbacks to prevent garbage collection when passed to native code
-        private static readonly List<LudolioNative.StatsCallback> activeStatsCallbacks = new List<LudolioNative.StatsCallback>();
-        private static readonly List<LudolioNative.StoreStatsCallback> activeStoreCallbacks = new List<LudolioNative.StoreStatsCallback>();
+        // Request state for IL2CPP-safe static callbacks.
+        // RequestStats is coalesced; StoreStats is serialized.
+        private static readonly List<Action<bool>> pendingRequestStatsCallbacks = new List<Action<bool>>();
+        private static bool isRequestStatsInProgress;
+
+        private sealed class StoreStatsRequest
+        {
+            public readonly Action<bool> Callback;
+
+            public StoreStatsRequest(Action<bool> callback)
+            {
+                Callback = callback;
+            }
+        }
+
+        private static readonly Queue<StoreStatsRequest> pendingStoreStatsRequests = new Queue<StoreStatsRequest>();
+        private static StoreStatsRequest activeStoreStatsRequest;
         private static readonly object callbackLock = new object();
+
+        private static void StartNextStoreStatsRequest()
+        {
+            bool shouldStart;
+
+            lock (callbackLock)
+            {
+                shouldStart = activeStoreStatsRequest == null && pendingStoreStatsRequests.Count > 0;
+                if (shouldStart)
+                {
+                    activeStoreStatsRequest = pendingStoreStatsRequests.Dequeue();
+                }
+            }
+
+            if (shouldStart)
+            {
+                LudolioNative.Ludolio_StoreStats(OnStoreStatsCallbackStatic);
+            }
+        }
+
+        /// <summary>
+        /// IL2CPP-safe static callback for RequestStats.
+        /// </summary>
+        [MonoPInvokeCallback(typeof(LudolioNative.StatsCallback))]
+        private static void OnRequestStatsCallbackStatic(string jsonData)
+        {
+            List<Action<bool>> callbacks;
+
+            lock (callbackLock)
+            {
+                callbacks = new List<Action<bool>>(pendingRequestStatsCallbacks);
+                pendingRequestStatsCallbacks.Clear();
+                isRequestStatsInProgress = false;
+            }
+
+            bool success = !string.IsNullOrEmpty(jsonData);
+            if (success)
+            {
+                statsLoaded = true;
+                Debug.Log("[LudolioStats] Stats loaded successfully");
+                OnStatsReceived?.Invoke();
+            }
+            else
+            {
+                string error = LudolioSDK.GetLastError();
+                Debug.LogError($"[LudolioStats] Failed to load stats: {error}");
+            }
+
+            foreach (var callback in callbacks)
+            {
+                callback?.Invoke(success);
+            }
+        }
 
         /// <summary>
         /// Request stats from the server. Must be called before GetStat/SetStat.
@@ -53,36 +121,22 @@ namespace Ludolio.SDK
                 return;
             }
 
-            LudolioNative.StatsCallback nativeCallback = null;
-            nativeCallback = (jsonData) =>
-            {
-                lock (callbackLock)
-                {
-                    activeStatsCallbacks.Remove(nativeCallback);
-                }
-
-                bool success = !string.IsNullOrEmpty(jsonData);
-                if (success)
-                {
-                    statsLoaded = true;
-                    Debug.Log("[LudolioStats] Stats loaded successfully");
-                    OnStatsReceived?.Invoke();
-                }
-                else
-                {
-                    string error = LudolioSDK.GetLastError();
-                    Debug.LogError($"[LudolioStats] Failed to load stats: {error}");
-                }
-
-                callback?.Invoke(success);
-            };
+            bool shouldStartRequest = false;
 
             lock (callbackLock)
             {
-                activeStatsCallbacks.Add(nativeCallback);
+                pendingRequestStatsCallbacks.Add(callback);
+                if (!isRequestStatsInProgress)
+                {
+                    isRequestStatsInProgress = true;
+                    shouldStartRequest = true;
+                }
             }
 
-            LudolioNative.Ludolio_RequestStats(nativeCallback);
+            if (shouldStartRequest)
+            {
+                LudolioNative.Ludolio_RequestStats(OnRequestStatsCallbackStatic);
+            }
         }
 
         /// <summary>
@@ -186,6 +240,41 @@ namespace Ludolio.SDK
         }
 
         /// <summary>
+        /// IL2CPP-safe static callback for StoreStats.
+        /// </summary>
+        [MonoPInvokeCallback(typeof(LudolioNative.StoreStatsCallback))]
+        private static void OnStoreStatsCallbackStatic(bool success, string jsonData)
+        {
+            StoreStatsRequest request;
+            bool shouldStartNext;
+
+            lock (callbackLock)
+            {
+                request = activeStoreStatsRequest;
+                activeStoreStatsRequest = null;
+                shouldStartNext = pendingStoreStatsRequests.Count > 0;
+            }
+
+            if (success)
+            {
+                Debug.Log("[LudolioStats] Stats stored successfully");
+                OnStatsStored?.Invoke();
+            }
+            else
+            {
+                Debug.LogError($"[LudolioStats] Failed to store stats: {jsonData}");
+                OnStatsStoreFailed?.Invoke(jsonData);
+            }
+
+            request?.Callback?.Invoke(success);
+
+            if (shouldStartNext)
+            {
+                StartNextStoreStatsRequest();
+            }
+        }
+
+        /// <summary>
         /// Store all modified stats to the server.
         /// Similar to Steamworks StoreStats().
         /// </summary>
@@ -206,34 +295,18 @@ namespace Ludolio.SDK
                 return;
             }
 
-            LudolioNative.StoreStatsCallback nativeCallback = null;
-            nativeCallback = (success, jsonData) =>
-            {
-                lock (callbackLock)
-                {
-                    activeStoreCallbacks.Remove(nativeCallback);
-                }
-
-                if (success)
-                {
-                    Debug.Log("[LudolioStats] Stats stored successfully");
-                    OnStatsStored?.Invoke();
-                }
-                else
-                {
-                    Debug.LogError($"[LudolioStats] Failed to store stats: {jsonData}");
-                    OnStatsStoreFailed?.Invoke(jsonData);
-                }
-
-                callback?.Invoke(success);
-            };
+            bool shouldStartRequest;
 
             lock (callbackLock)
             {
-                activeStoreCallbacks.Add(nativeCallback);
+                pendingStoreStatsRequests.Enqueue(new StoreStatsRequest(callback));
+                shouldStartRequest = activeStoreStatsRequest == null;
             }
 
-            LudolioNative.Ludolio_StoreStats(nativeCallback);
+            if (shouldStartRequest)
+            {
+                StartNextStoreStatsRequest();
+            }
         }
 
         /// <summary>
@@ -242,6 +315,14 @@ namespace Ludolio.SDK
         internal static void Reset()
         {
             statsLoaded = false;
+
+            lock (callbackLock)
+            {
+                pendingRequestStatsCallbacks.Clear();
+                isRequestStatsInProgress = false;
+                pendingStoreStatsRequests.Clear();
+                activeStoreStatsRequest = null;
+            }
         }
     }
 }

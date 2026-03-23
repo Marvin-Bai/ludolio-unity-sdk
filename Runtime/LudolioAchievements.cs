@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using AOT;
 
 namespace Ludolio.SDK
 {
     /// <summary>
     /// Achievements API for Ludolio. Similar to Steamworks achievements.
     /// Uses native DLL for secure communication with Desktop App.
+    /// IL2CPP compatible: all native callbacks use static methods with [MonoPInvokeCallback].
     /// </summary>
     public static class LudolioAchievements
     {
@@ -14,11 +16,89 @@ namespace Ludolio.SDK
 
         private static Dictionary<string, AchievementData> cachedAchievements = new Dictionary<string, AchievementData>();
 
-        // Store active callbacks to prevent garbage collection when passed to native code
-        // Native code holds raw function pointers - if the delegate is GC'd, the pointer becomes invalid
-        private static readonly List<LudolioNative.AchievementCallback> activeAchievementCallbacks = new List<LudolioNative.AchievementCallback>();
-        private static readonly List<LudolioNative.AchievementListCallback> activeListCallbacks = new List<LudolioNative.AchievementListCallback>();
+        // Request state for IL2CPP-safe static callbacks.
+        // We serialize / coalesce requests so static native callbacks never lose managed callbacks.
+        private sealed class UnlockRequest
+        {
+            public readonly string AchievementId;
+            public readonly Action<bool> Callback;
+
+            public UnlockRequest(string achievementId, Action<bool> callback)
+            {
+                AchievementId = achievementId;
+                Callback = callback;
+            }
+        }
+
+        private static readonly Queue<UnlockRequest> pendingUnlockRequests = new Queue<UnlockRequest>();
+        private static UnlockRequest activeUnlockRequest;
+        private static readonly List<Action<List<AchievementData>>> pendingListCallbacks = new List<Action<List<AchievementData>>>();
+        private static bool isGetAchievementsInProgress;
         private static readonly object callbackLock = new object();
+
+        private static void StartNextUnlockRequest()
+        {
+            string achievementId;
+
+            lock (callbackLock)
+            {
+                if (activeUnlockRequest != null || pendingUnlockRequests.Count == 0)
+                {
+                    return;
+                }
+
+                activeUnlockRequest = pendingUnlockRequests.Dequeue();
+                achievementId = activeUnlockRequest.AchievementId;
+            }
+
+            LudolioNative.Ludolio_UnlockAchievement(achievementId, OnUnlockAchievementCallbackStatic);
+        }
+
+        /// <summary>
+        /// IL2CPP-safe static callback for achievement unlock.
+        /// Native code calls this directly via function pointer.
+        /// </summary>
+        [MonoPInvokeCallback(typeof(LudolioNative.AchievementCallback))]
+        private static void OnUnlockAchievementCallbackStatic(bool success)
+        {
+            UnlockRequest request;
+            bool shouldStartNext;
+
+            lock (callbackLock)
+            {
+                request = activeUnlockRequest;
+                activeUnlockRequest = null;
+                shouldStartNext = pendingUnlockRequests.Count > 0;
+            }
+
+            string achievementId = request != null ? request.AchievementId : null;
+            Action<bool> callback = request != null ? request.Callback : null;
+
+            if (success)
+            {
+                Debug.Log($"[LudolioAchievements] Achievement unlocked: {achievementId}");
+
+                // Update cache
+                if (achievementId != null && cachedAchievements.ContainsKey(achievementId))
+                {
+                    cachedAchievements[achievementId].unlocked = true;
+                }
+
+                OnAchievementUnlocked?.Invoke(achievementId);
+            }
+            else
+            {
+                string error = LudolioSDK.GetLastError();
+                Debug.LogError($"[LudolioAchievements] Failed to unlock achievement: {error}");
+            }
+
+            callback?.Invoke(success);
+
+            if (shouldStartNext)
+            {
+                StartNextUnlockRequest();
+            }
+        }
 
         /// <summary>
         /// Unlock an achievement for the current user
@@ -41,47 +121,76 @@ namespace Ludolio.SDK
                 return;
             }
 
-            // Create callback and store it to prevent garbage collection
-            // CRITICAL: The native DLL holds a raw function pointer - if the delegate is GC'd,
-            // calling the pointer causes a crash (SIGSEGV/Access Violation)
-            LudolioNative.AchievementCallback nativeCallback = null;
-            nativeCallback = (success) =>
-            {
-                // Remove from active callbacks after invocation
-                lock (callbackLock)
-                {
-                    activeAchievementCallbacks.Remove(nativeCallback);
-                }
+            bool shouldStartRequest;
 
-                if (success)
-                {
-                    Debug.Log($"[LudolioAchievements] Achievement unlocked: {achievementId}");
-
-                    // Update cache
-                    if (cachedAchievements.ContainsKey(achievementId))
-                    {
-                        cachedAchievements[achievementId].unlocked = true;
-                    }
-
-                    OnAchievementUnlocked?.Invoke(achievementId);
-                }
-                else
-                {
-                    string error = LudolioSDK.GetLastError();
-                    Debug.LogError($"[LudolioAchievements] Failed to unlock achievement: {error}");
-                }
-
-                callback?.Invoke(success);
-            };
-
-            // Store callback to prevent GC before native code calls it
             lock (callbackLock)
             {
-                activeAchievementCallbacks.Add(nativeCallback);
+                pendingUnlockRequests.Enqueue(new UnlockRequest(achievementId, callback));
+                shouldStartRequest = activeUnlockRequest == null;
             }
 
-            // Call native DLL function
-            LudolioNative.Ludolio_UnlockAchievement(achievementId, nativeCallback);
+            if (shouldStartRequest)
+            {
+                StartNextUnlockRequest();
+            }
+        }
+
+        /// <summary>
+        /// IL2CPP-safe static callback for achievement list.
+        /// Native code calls this directly via function pointer.
+        /// </summary>
+        [MonoPInvokeCallback(typeof(LudolioNative.AchievementListCallback))]
+        private static void OnAchievementListCallbackStatic(string jsonData)
+        {
+            List<Action<List<AchievementData>>> callbacks;
+
+            lock (callbackLock)
+            {
+                callbacks = new List<Action<List<AchievementData>>>(pendingListCallbacks);
+                pendingListCallbacks.Clear();
+                isGetAchievementsInProgress = false;
+            }
+
+            if (string.IsNullOrEmpty(jsonData))
+            {
+                string error = LudolioSDK.GetLastError();
+                Debug.LogError($"[LudolioAchievements] Failed to get achievements: {error}");
+                foreach (var callback in callbacks)
+                {
+                    callback?.Invoke(null);
+                }
+                return;
+            }
+
+            try
+            {
+                // Parse JSON response
+                var response = JsonUtility.FromJson<AchievementsResponse>("{\"achievements\":" + jsonData + "}");
+                var achievements = response != null && response.achievements != null
+                    ? response.achievements
+                    : new List<AchievementData>();
+
+                // Update cache
+                cachedAchievements.Clear();
+                foreach (var achievement in achievements)
+                {
+                    cachedAchievements[achievement.id] = achievement;
+                }
+
+                Debug.Log($"[LudolioAchievements] Loaded {achievements.Count} achievements");
+                foreach (var callback in callbacks)
+                {
+                    callback?.Invoke(achievements);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[LudolioAchievements] Failed to parse achievements: {ex.Message}");
+                foreach (var callback in callbacks)
+                {
+                    callback?.Invoke(null);
+                }
+            }
         }
 
         /// <summary>
@@ -104,56 +213,22 @@ namespace Ludolio.SDK
                 return;
             }
 
-            // Create callback and store it to prevent garbage collection
-            // CRITICAL: The native DLL holds a raw function pointer - if the delegate is GC'd,
-            // calling the pointer causes a crash (SIGSEGV/Access Violation)
-            LudolioNative.AchievementListCallback nativeCallback = null;
-            nativeCallback = (jsonData) =>
-            {
-                // Remove from active callbacks after invocation
-                lock (callbackLock)
-                {
-                    activeListCallbacks.Remove(nativeCallback);
-                }
+            bool shouldStartRequest = false;
 
-                if (string.IsNullOrEmpty(jsonData))
-                {
-                    string error = LudolioSDK.GetLastError();
-                    Debug.LogError($"[LudolioAchievements] Failed to get achievements: {error}");
-                    callback?.Invoke(null);
-                    return;
-                }
-
-                try
-                {
-                    // Parse JSON response
-                    var response = JsonUtility.FromJson<AchievementsResponse>("{\"achievements\":" + jsonData + "}");
-
-                    // Update cache
-                    cachedAchievements.Clear();
-                    foreach (var achievement in response.achievements)
-                    {
-                        cachedAchievements[achievement.id] = achievement;
-                    }
-
-                    Debug.Log($"[LudolioAchievements] Loaded {response.achievements.Count} achievements");
-                    callback?.Invoke(response.achievements);
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogError($"[LudolioAchievements] Failed to parse achievements: {ex.Message}");
-                    callback?.Invoke(null);
-                }
-            };
-
-            // Store callback to prevent GC before native code calls it
             lock (callbackLock)
             {
-                activeListCallbacks.Add(nativeCallback);
+                pendingListCallbacks.Add(callback);
+                if (!isGetAchievementsInProgress)
+                {
+                    isGetAchievementsInProgress = true;
+                    shouldStartRequest = true;
+                }
             }
 
-            // Call native DLL function
-            LudolioNative.Ludolio_GetAchievements(nativeCallback);
+            if (shouldStartRequest)
+            {
+                LudolioNative.Ludolio_GetAchievements(OnAchievementListCallbackStatic);
+            }
         }
 
         /// <summary>
@@ -184,6 +259,19 @@ namespace Ludolio.SDK
         public static void ClearCache()
         {
             cachedAchievements.Clear();
+        }
+
+        internal static void Reset()
+        {
+            cachedAchievements.Clear();
+
+            lock (callbackLock)
+            {
+                pendingUnlockRequests.Clear();
+                activeUnlockRequest = null;
+                pendingListCallbacks.Clear();
+                isGetAchievementsInProgress = false;
+            }
         }
 
         // Data structures
