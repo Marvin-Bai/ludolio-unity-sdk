@@ -72,6 +72,10 @@ namespace Ludolio.SDK
         [MonoPInvokeCallback(typeof(LudolioNative.StatsCallback))]
         private static void OnRequestStatsCallbackStatic(string jsonData)
         {
+            // Capture data needed on the main thread (native strings may not survive cross-thread)
+            bool success = !string.IsNullOrEmpty(jsonData);
+            string error = success ? null : LudolioSDK.GetLastError();
+
             List<Action<bool>> callbacks;
 
             lock (callbackLock)
@@ -81,23 +85,25 @@ namespace Ludolio.SDK
                 isRequestStatsInProgress = false;
             }
 
-            bool success = !string.IsNullOrEmpty(jsonData);
-            if (success)
+            // Marshal to main thread since this callback fires on a background thread
+            LudolioSDK.EnqueueMainThread(() =>
             {
-                statsLoaded = true;
-                Debug.Log("[LudolioStats] Stats loaded successfully");
-                OnStatsReceived?.Invoke();
-            }
-            else
-            {
-                string error = LudolioSDK.GetLastError();
-                Debug.LogError($"[LudolioStats] Failed to load stats: {error}");
-            }
+                if (success)
+                {
+                    statsLoaded = true;
+                    Debug.Log("[LudolioStats] Stats loaded successfully");
+                    OnStatsReceived?.Invoke();
+                }
+                else
+                {
+                    Debug.LogError($"[LudolioStats] Failed to load stats: {error}");
+                }
 
-            foreach (var callback in callbacks)
-            {
-                callback?.Invoke(success);
-            }
+                foreach (var callback in callbacks)
+                {
+                    callback?.Invoke(success);
+                }
+            });
         }
 
         /// <summary>
@@ -245,6 +251,10 @@ namespace Ludolio.SDK
         [MonoPInvokeCallback(typeof(LudolioNative.StoreStatsCallback))]
         private static void OnStoreStatsCallbackStatic(bool success, string jsonData)
         {
+            // Capture data needed on the main thread
+            bool capturedSuccess = success;
+            string capturedData = jsonData;
+
             StoreStatsRequest request;
             bool shouldStartNext;
 
@@ -255,23 +265,27 @@ namespace Ludolio.SDK
                 shouldStartNext = pendingStoreStatsRequests.Count > 0;
             }
 
-            if (success)
+            // Marshal to main thread since this callback fires on a background thread
+            LudolioSDK.EnqueueMainThread(() =>
             {
-                Debug.Log("[LudolioStats] Stats stored successfully");
-                OnStatsStored?.Invoke();
-            }
-            else
-            {
-                Debug.LogError($"[LudolioStats] Failed to store stats: {jsonData}");
-                OnStatsStoreFailed?.Invoke(jsonData);
-            }
+                if (capturedSuccess)
+                {
+                    Debug.Log("[LudolioStats] Stats stored successfully");
+                    OnStatsStored?.Invoke();
+                }
+                else
+                {
+                    Debug.LogError($"[LudolioStats] Failed to store stats: {capturedData}");
+                    OnStatsStoreFailed?.Invoke(capturedData);
+                }
 
-            request?.Callback?.Invoke(success);
+                request?.Callback?.Invoke(capturedSuccess);
 
-            if (shouldStartNext)
-            {
-                StartNextStoreStatsRequest();
-            }
+                if (shouldStartNext)
+                {
+                    StartNextStoreStatsRequest();
+                }
+            });
         }
 
         /// <summary>

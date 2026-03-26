@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using System.Runtime.InteropServices;
+using AOT;
 
 namespace Ludolio.SDK
 {
@@ -11,6 +12,8 @@ namespace Ludolio.SDK
     public static class LudolioUser
     {
         private static UserInfo cachedUserInfo = null;
+        private static Action<UserInfo> pendingGetUserInfoCallback;
+        private static readonly object callbackLock = new object();
 
         /// <summary>
         /// Get the current user's ID
@@ -63,27 +66,47 @@ namespace Ludolio.SDK
                 return;
             }
 
-            // Call native DLL function
-            LudolioNative.Ludolio_GetUserInfo((userId, userName, email) =>
+            // Store callback and use IL2CPP-safe static method
+            lock (callbackLock)
             {
-                if (string.IsNullOrEmpty(userId))
-                {
-                    string error = LudolioSDK.GetLastError();
-                    Debug.LogError($"[LudolioUser] Failed to get user info: {error}");
-                    callback?.Invoke(null);
-                    return;
-                }
+                pendingGetUserInfoCallback = callback;
+            }
 
-                cachedUserInfo = new UserInfo
-                {
-                    id = userId,
-                    name = userName,
-                    email = email
-                };
+            LudolioNative.Ludolio_GetUserInfo(OnGetUserInfoCallbackStatic);
+        }
 
-                Debug.Log($"[LudolioUser] User info loaded: {userName}");
-                callback?.Invoke(cachedUserInfo);
-            });
+        /// <summary>
+        /// IL2CPP-safe static callback for GetUserInfo.
+        /// Native code calls this directly via function pointer.
+        /// </summary>
+        [MonoPInvokeCallback(typeof(LudolioNative.UserInfoCallback))]
+        private static void OnGetUserInfoCallbackStatic(string userId, string userName, string email)
+        {
+            Action<UserInfo> callback;
+
+            lock (callbackLock)
+            {
+                callback = pendingGetUserInfoCallback;
+                pendingGetUserInfoCallback = null;
+            }
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                string error = LudolioSDK.GetLastError();
+                Debug.LogError($"[LudolioUser] Failed to get user info: {error}");
+                callback?.Invoke(null);
+                return;
+            }
+
+            cachedUserInfo = new UserInfo
+            {
+                id = userId,
+                name = userName,
+                email = email
+            };
+
+            Debug.Log($"[LudolioUser] User info loaded: {userName}");
+            callback?.Invoke(cachedUserInfo);
         }
 
         /// <summary>

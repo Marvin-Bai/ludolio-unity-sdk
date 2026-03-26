@@ -242,6 +242,21 @@ namespace Ludolio.SDK
             }
         }
 
+        /// <summary>
+        /// Enqueue an action to run on the Unity main thread.
+        /// Used by other SDK classes whose native callbacks fire on background threads.
+        /// </summary>
+        internal static void EnqueueMainThread(Action action)
+        {
+            var inst = instance;
+            if (inst == null) return;
+
+            lock (inst.queueLock)
+            {
+                inst.mainThreadQueue.Enqueue(action);
+            }
+        }
+
         private void Authenticate()
         {
             // Use IL2CPP-safe static delegate
