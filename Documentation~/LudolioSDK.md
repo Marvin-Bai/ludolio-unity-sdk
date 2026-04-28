@@ -215,11 +215,18 @@ LudolioSDK.OnClientDisconnected += () =>
 
 Achievement management API.
 
+> **Identifier convention.** The string passed to `UnlockAchievement`,
+> `IsAchievementUnlocked`, and the `OnAchievementUnlocked` event is the
+> achievement's **API Name** as configured on the developer dashboard
+> (e.g. `"first_win"`). On `AchievementData` objects returned by
+> `GetAchievements`, the same value is exposed as `achievementId`. Do
+> not confuse this with any internal database identifier.
+
 #### Static Methods
 
 ##### `UnlockAchievement(string achievementId, Action<bool> callback = null)`
 
-Unlock an achievement.
+Unlock an achievement. `achievementId` is the dashboard API Name.
 
 ```csharp
 LudolioAchievements.UnlockAchievement("first_win", success =>
@@ -233,21 +240,41 @@ LudolioAchievements.UnlockAchievement("first_win", success =>
 
 ##### `GetAchievements(Action<List<AchievementData>> callback)`
 
-Get all achievements for the current game.
+Get all achievements for the current game, including their unlock status for the
+current user. Useful for hydrating local state on launch.
 
 ```csharp
 LudolioAchievements.GetAchievements(achievements =>
 {
     foreach (var achievement in achievements)
     {
-        Debug.Log($"{achievement.name}: {achievement.unlocked}");
+        // achievement.achievementId is the dashboard API Name
+        Debug.Log($"{achievement.achievementId} ({achievement.name}): {achievement.unlocked}");
+    }
+});
+```
+
+**Example: restoring unlock state on launch**
+
+```csharp
+LudolioAchievements.GetAchievements(achievements =>
+{
+    if (achievements == null) return;
+
+    foreach (var achievement in achievements)
+    {
+        if (achievement.unlocked)
+        {
+            // Use the API Name to reconcile with your local progression
+            MyGameProgress.MarkAchievementUnlocked(achievement.achievementId);
+        }
     }
 });
 ```
 
 ##### `IsAchievementUnlocked(string achievementId)`
 
-Check if an achievement is unlocked (from cache).
+Check if an achievement is unlocked (from cache). Pass the dashboard API Name.
 
 ```csharp
 if (LudolioAchievements.IsAchievementUnlocked("first_win"))
@@ -256,9 +283,14 @@ if (LudolioAchievements.IsAchievementUnlocked("first_win"))
 }
 ```
 
+> The local cache used by this method is populated by `GetAchievements`. Call
+> `GetAchievements` once after authentication if you intend to rely on this
+> method without first unlocking achievements during the session.
+
 ##### `ClearCache()`
 
-Clear the achievement cache to force a refresh.
+Clear both the managed Unity achievement cache and the native SDK achievement
+cache to force a refresh.
 
 ```csharp
 LudolioAchievements.ClearCache();
@@ -268,7 +300,7 @@ LudolioAchievements.ClearCache();
 
 ##### `OnAchievementUnlocked(string achievementId)`
 
-Fired when an achievement is unlocked.
+Fired when an achievement is unlocked. The argument is the dashboard API Name.
 
 ```csharp
 LudolioAchievements.OnAchievementUnlocked += (achievementId) =>
@@ -277,6 +309,30 @@ LudolioAchievements.OnAchievementUnlocked += (achievementId) =>
     // Show achievement notification UI
 };
 ```
+
+#### Data Types
+
+```csharp
+public class AchievementData
+{
+    public string achievementId;     // Dashboard API Name — use this for UnlockAchievement / IsAchievementUnlocked
+    public string gameId;
+    public string name;              // Display name
+    public string description;
+    public string lockedIconUrl;     // Icon URL when locked
+    public string unlockedIconUrl;   // Icon URL when unlocked
+    public bool   unlocked;
+    public string unlockedAt;        // ISO-8601 timestamp, or null if locked
+
+    // Deprecated temporary compatibility aliases — do not use in new code:
+    [Obsolete] public string id;     // aliases achievementId, never the DB row UUID
+    [Obsolete] public string icon;   // aliases the best available icon URL
+}
+```
+
+> `id` and `icon` are temporary compatibility aliases for older SDK clients and
+> should be removed in the next breaking SDK/Desktop IPC release. New code should
+> use `achievementId`, `lockedIconUrl`, and `unlockedIconUrl`.
 
 ### LudolioUser
 

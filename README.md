@@ -17,7 +17,7 @@ void Start() {
 }
 ```
 
-Unlock achievement:
+Unlock achievement (the string is the **API Name** from the developer dashboard):
 
 ```csharp
 LudolioAchievements.UnlockAchievement("ACH_FIRST_WIN");
@@ -112,6 +112,12 @@ public class GameInitializer : MonoBehaviour
 
 ### 2. Using Achievements
 
+> **Identifier convention.** Every achievement is identified by its
+> **API Name** as configured on the developer dashboard (e.g. `"ACH_10_KILLS"`).
+> That same string is the `achievementId` field on `AchievementData`. Always use
+> the API Name when calling `UnlockAchievement`, `IsAchievementUnlocked`, or
+> reconciling against `GetAchievements` results.
+
 Unlock achievements when players accomplish goals:
 
 ```csharp
@@ -149,6 +155,33 @@ LudolioAchievements.UnlockAchievement("ACH_FIRST_WIN", success =>
         Debug.LogError("Failed to unlock achievement");
     }
 });
+```
+
+**Restoring unlock state on launch**
+
+After authentication completes, call `GetAchievements` once to learn which
+achievements the current user has already unlocked. The `achievementId` field
+matches the API Name you used in `UnlockAchievement`.
+
+```csharp
+private void OnAuthenticationComplete(bool success)
+{
+    if (!success) return;
+
+    LudolioAchievements.GetAchievements(achievements =>
+    {
+        if (achievements == null) return;
+
+        foreach (var achievement in achievements)
+        {
+            if (achievement.unlocked)
+            {
+                // achievement.achievementId is the dashboard API Name
+                MyGameProgress.MarkAchievementUnlocked(achievement.achievementId);
+            }
+        }
+    });
+}
 ```
 
 ### 3. Using Stats
@@ -281,7 +314,7 @@ Achievement management API.
 | `UnlockAchievement(string achievementId, Action<bool> callback = null)` | `void` | Unlock an achievement |
 | `GetAchievements(Action<List<AchievementData>> callback)` | `void` | Get all achievements for the game |
 | `IsAchievementUnlocked(string achievementId)` | `bool` | Check if achievement is unlocked (from cache) |
-| `ClearCache()` | `void` | Clear the local achievement cache |
+| `ClearCache()` | `void` | Clear the managed and native achievement caches |
 
 #### Events
 
@@ -294,14 +327,24 @@ Achievement management API.
 ```csharp
 public class AchievementData
 {
-    public string id;
-    public string name;
+    public string achievementId;     // Dashboard API Name — use this for UnlockAchievement / IsAchievementUnlocked
+    public string gameId;
+    public string name;              // Display name
     public string description;
-    public string icon;
-    public bool unlocked;
-    public string unlockedAt;
+    public string lockedIconUrl;     // Icon URL when locked
+    public string unlockedIconUrl;   // Icon URL when unlocked
+    public bool   unlocked;
+    public string unlockedAt;        // ISO-8601 timestamp, or null if locked
+
+    // Deprecated temporary compatibility aliases — do not use in new code:
+    [Obsolete] public string id;     // aliases achievementId, never the DB row UUID
+    [Obsolete] public string icon;   // aliases the best available icon URL
 }
 ```
+
+> `id` and `icon` are temporary compatibility aliases for older SDK clients and
+> should be removed in the next breaking SDK/Desktop IPC release. New code should
+> use `achievementId`, `lockedIconUrl`, and `unlockedIconUrl`.
 
 ### LudolioStats
 

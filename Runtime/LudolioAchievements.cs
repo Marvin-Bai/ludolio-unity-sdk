@@ -170,11 +170,16 @@ namespace Ludolio.SDK
                     ? response.achievements
                     : new List<AchievementData>();
 
-                // Update cache
+                // Update cache. Keyed by achievementId (the API Name) — this is the
+                // identifier games pass to UnlockAchievement / IsAchievementUnlocked.
                 cachedAchievements.Clear();
                 foreach (var achievement in achievements)
                 {
-                    cachedAchievements[achievement.id] = achievement;
+                    if (string.IsNullOrEmpty(achievement.achievementId))
+                    {
+                        continue;
+                    }
+                    cachedAchievements[achievement.achievementId] = achievement;
                 }
 
                 Debug.Log($"[LudolioAchievements] Loaded {achievements.Count} achievements");
@@ -259,6 +264,7 @@ namespace Ludolio.SDK
         public static void ClearCache()
         {
             cachedAchievements.Clear();
+            LudolioNative.Ludolio_ClearAchievementCache();
         }
 
         internal static void Reset()
@@ -275,15 +281,68 @@ namespace Ludolio.SDK
         }
 
         // Data structures
+
+        /// <summary>
+        /// Represents a single achievement returned by <see cref="GetAchievements"/>.
+        /// </summary>
+        /// <remarks>
+        /// Use <see cref="achievementId"/> (the "API Name" shown on the developer
+        /// dashboard) when calling <see cref="UnlockAchievement"/> or
+        /// <see cref="IsAchievementUnlocked"/>. The legacy <see cref="id"/> and
+        /// <see cref="icon"/> fields are populated only for backwards compatibility
+        /// and should not be relied upon in new code.
+        /// </remarks>
         [Serializable]
         public class AchievementData
         {
-            public string id;
+            /// <summary>
+            /// The achievement's API Name as defined on the developer dashboard
+            /// (e.g. "first_win"). This is the identifier accepted by
+            /// <see cref="UnlockAchievement"/> and <see cref="IsAchievementUnlocked"/>.
+            /// </summary>
+            public string achievementId;
+
+            /// <summary>The game ID this achievement belongs to.</summary>
+            public string gameId;
+
+            /// <summary>Display name shown to the player.</summary>
             public string name;
+
+            /// <summary>Description shown to the player.</summary>
             public string description;
-            public string icon;
+
+            /// <summary>URL of the icon shown when the achievement is locked.</summary>
+            public string lockedIconUrl;
+
+            /// <summary>URL of the icon shown when the achievement is unlocked.</summary>
+            public string unlockedIconUrl;
+
+            /// <summary>Whether the current user has unlocked this achievement.</summary>
             public bool unlocked;
+
+            /// <summary>ISO-8601 timestamp of the unlock, or null if locked.</summary>
             public string unlockedAt;
+
+            // ── Deprecated fields (kept for source-compatibility with SDK <= 0.4.3) ──
+
+            /// <summary>
+            /// Deprecated. Previously held the desktop client's internal database row ID
+            /// (a UUID), which is not the same as the dashboard API Name and cannot be used
+            /// to unlock achievements. Use <see cref="achievementId"/> instead. Newer
+            /// desktop clients may temporarily populate this as an alias of
+            /// <see cref="achievementId"/> for backwards compatibility only.
+            /// </summary>
+            [Obsolete("Use achievementId — the dashboard API Name. The 'id' field is only a temporary compatibility alias.", false)]
+            public string id;
+
+            /// <summary>
+            /// Deprecated. The desktop client returns separate <see cref="lockedIconUrl"/>
+            /// and <see cref="unlockedIconUrl"/> values. Newer desktop clients may
+            /// temporarily populate this as a best-effort icon URL alias for backwards
+            /// compatibility only.
+            /// </summary>
+            [Obsolete("Use lockedIconUrl / unlockedIconUrl. The 'icon' field is only a temporary compatibility alias.", false)]
+            public string icon;
         }
 
         [Serializable]

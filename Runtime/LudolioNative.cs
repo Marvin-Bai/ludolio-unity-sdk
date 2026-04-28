@@ -106,6 +106,9 @@ namespace Ludolio.SDK
             [MarshalAs(UnmanagedType.LPStr)] string achievementId
         );
 
+        [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Ludolio_ClearAchievementCache();
+
         // Stats (like Steamworks stats)
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Ludolio_RequestStats(StatsCallback callback);
